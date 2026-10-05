@@ -50,11 +50,6 @@
           <span class="material-symbols-rounded">account_balance</span>
           <span class="nav-label">Rekap Payroll</span>
         </button>
-
-        <button class="nav-item" id="navPolicy" onclick="navigate('policy')">
-          <span class="material-symbols-rounded">policy</span>
-          <span class="nav-label">Kebijakan EWA</span>
-        </button>
       </nav>
 
       <div class="sidebar-footer">
@@ -167,12 +162,17 @@
               </div>
             </div>
 
-            <!-- Role Distribution Summary -->
+            <!-- Role Distribution Summary (Display Acuan Saja) -->
             <div class="panel-card flex-1">
               <div class="panel-header">
-                <div class="panel-title-group">
-                  <span class="material-symbols-rounded text-purple">work</span>
-                  <h3 class="panel-title">Struktur Gaji & Role</h3>
+                <div>
+                  <div class="panel-title-group">
+                    <span class="material-symbols-rounded text-purple">work</span>
+                    <h3 class="panel-title">Display Acuan Standar Gaji</h3>
+                  </div>
+                  <p style="font-size: 0.74rem; color: var(--text-muted); margin-top: 4px;">
+                    *Display acuan saja. Limit penarikan riil dihitung otomatis per individu.
+                  </p>
                 </div>
               </div>
               <div class="role-list">
@@ -182,7 +182,7 @@
                     <span class="role-salary">Rp4.000.000</span>
                   </div>
                   <div class="role-progress-bg"><div class="role-progress-bar" style="width: 60%"></div></div>
-                  <span class="role-limit">Limit Tarik Max: Rp1.600.000</span>
+                  <span class="role-limit">Acuan posisi (Limit riil per orang)</span>
                 </div>
 
                 <div class="role-item">
@@ -191,7 +191,7 @@
                     <span class="role-salary">Rp7.000.000</span>
                   </div>
                   <div class="role-progress-bg"><div class="role-progress-bar" style="width: 25%"></div></div>
-                  <span class="role-limit">Limit Tarik Max: Rp2.800.000</span>
+                  <span class="role-limit">Acuan posisi (Limit riil per orang)</span>
                 </div>
 
                 <div class="role-item">
@@ -200,7 +200,7 @@
                     <span class="role-salary">Rp12.000.000</span>
                   </div>
                   <div class="role-progress-bg"><div class="role-progress-bar" style="width: 15%"></div></div>
-                  <span class="role-limit">Limit Tarik Max: Rp4.800.000</span>
+                  <span class="role-limit">Acuan posisi (Limit riil per orang)</span>
                 </div>
               </div>
             </div>
@@ -261,14 +261,6 @@
                   <span class="material-symbols-rounded">refresh</span>
                   <span>Segarkan</span>
                 </button>
-              </div>
-            </div>
-
-            <!-- Auto-validation notice for HR Admin -->
-            <div class="info-alert">
-              <span class="material-symbols-rounded text-purple">verified_user</span>
-              <div>
-                <strong>Validasi Sistem Otomatis Aktif</strong>: Sistem Cashper secara instan memvalidasi limit penarikan berdasarkan hari kerja riil dan batas keamanan 40%. Penarikan otomatis berstatus <strong>Tersalurkan</strong> tanpa perlu persetujuan manual admin. Seluruh dana yang ditarik otomatis terakumulasi di tab <strong>Rekap Payroll</strong> untuk dipotong saat tanggal gajian (Payday).
               </div>
             </div>
 
@@ -369,56 +361,6 @@
                   <tr><td colspan="7" class="table-empty">Memuat rekap pemotongan payroll...</td></tr>
                 </tbody>
               </table>
-            </div>
-          </div>
-        </section>
-
-        <!-- SECTION 5: KEBIJAKAN EWA -->
-        <section id="sectionPolicy" class="content-section">
-          <div class="panel-card">
-            <div class="panel-header">
-              <div class="panel-title-group">
-                <span class="material-symbols-rounded text-purple">gavel</span>
-                <h3 class="panel-title">Aturan Bisnis & Kebijakan EWA Cashper</h3>
-              </div>
-            </div>
-
-            <div class="policy-grid">
-              <div class="policy-box">
-                <div class="policy-icon"><span class="material-symbols-rounded">percent</span></div>
-                <div class="policy-info">
-                  <span class="policy-label">Batas Maksimal Penarikan (Limit Cap)</span>
-                  <span class="policy-val">40% dari Gaji Pokok Bulanan</span>
-                  <p class="policy-desc">Karyawan tidak bisa menarik 100% gaji berjalan. Minimal 60% gaji utuh wajib tersisa untuk tanggal gajian (Payday).</p>
-                </div>
-              </div>
-
-              <div class="policy-box">
-                <div class="policy-icon"><span class="material-symbols-rounded">repeat</span></div>
-                <div class="policy-info">
-                  <span class="policy-label">Batas Frekuensi Penarikan</span>
-                  <span class="policy-val">Maksimal 3 Kali / Bulan</span>
-                  <p class="policy-desc">Mencegah perilaku konsumtif dan menjaga kestabilan finansial karyawan.</p>
-                </div>
-              </div>
-
-              <div class="policy-box">
-                <div class="policy-icon"><span class="material-symbols-rounded">attach_money</span></div>
-                <div class="policy-info">
-                  <span class="policy-label">Biaya Administrasi Transaksi</span>
-                  <span class="policy-val">Rp15.000 / Transaksi (Flat)</span>
-                  <p class="policy-desc">Biaya administrasi tetap dipotong langsung saat pencairan ke rekening karyawan.</p>
-                </div>
-              </div>
-
-              <div class="policy-box">
-                <div class="policy-icon"><span class="material-symbols-rounded">straighten</span></div>
-                <div class="policy-info">
-                  <span class="policy-label">Minimum Nominal Penarikan</span>
-                  <span class="policy-val">Rp100.000 (Kelipatan Rp50.000)</span>
-                  <p class="policy-desc">Menjamin penarikan yang diajukan selalu menutup biaya transfer dan efisien.</p>
-                </div>
-              </div>
             </div>
           </div>
         </section>
