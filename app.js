@@ -155,17 +155,20 @@ function renderEmployeesTable(list) {
       ? '<span class="status-tag active"><span class="material-symbols-rounded" style="font-size:14px;">check_circle</span> Aktif</span>'
       : '<span class="status-tag inactive"><span class="material-symbols-rounded" style="font-size:14px;">cancel</span> Nonaktif</span>';
 
-    const toggleText = emp.is_active ? 'Nonaktifkan' : 'Aktifkan';
+    const isCompanyAccount = emp.email && emp.email.toLowerCase() === 'halo.cashper@gmail.com';
+    const salaryDisplay = isCompanyAccount ? '<span class="emp-sub">Non-EWA (HR Perusahaan)</span>' : `<div class="emp-salary">${formatRupiah(emp.base_salary)}</div>`;
+    const companyBadge = isCompanyAccount ? '<span style="font-size:10px; background:#29153f; color:#bf5ae8; padding:2px 6px; border-radius:4px; display:inline-block; margin-top:2px;">Akun HR Perusahaan</span>' : '';
 
     return `
       <tr>
         <td>
           <div class="emp-name">${escapeHtml(emp.full_name)}</div>
           <div class="emp-sub">${escapeHtml(emp.email)}</div>
+          ${companyBadge}
         </td>
         <td>
           <div>${escapeHtml(emp.role_name || 'Staff')}</div>
-          <div class="emp-salary">${formatRupiah(emp.base_salary)}</div>
+          ${salaryDisplay}
         </td>
         <td>${escapeHtml(emp.company || 'PT Maju Bersama')}</td>
         <td>
@@ -575,6 +578,27 @@ async function loadPayrollRecap() {
   let activeEwaCount = 0;
 
   const rows = allEmployees.map(emp => {
+    const isCompany = emp.email && emp.email.toLowerCase() === 'halo.cashper@gmail.com';
+    if (isCompany) {
+      return `
+        <tr style="opacity: 0.85;">
+          <td>
+            <div class="emp-name">${escapeHtml(emp.full_name)} <span style="font-size:10px; background:#29153f; color:#bf5ae8; padding:2px 6px; border-radius:4px;">HR Admin</span></div>
+            <div class="emp-sub">${escapeHtml(emp.email)}</div>
+          </td>
+          <td>
+            <div>${escapeHtml(emp.role_name || 'HR Admin')}</div>
+            <div class="emp-sub">${escapeHtml(emp.company || 'PT Maju Bersama')}</div>
+          </td>
+          <td><em>Akun Perusahaan</em></td>
+          <td>-</td>
+          <td>-</td>
+          <td>-</td>
+          <td><span class="status-tag" style="background:var(--border-subtle); color:var(--text-muted);">Non-EWA</span></td>
+        </tr>
+      `;
+    }
+
     const empWithdrawals = allWithdrawals.filter(w => {
       const matchEmail = w.email && emp.email && w.email.toLowerCase() === emp.email.toLowerCase();
       const matchName = w.employee_name && emp.full_name && w.employee_name.toLowerCase() === emp.full_name.toLowerCase();
