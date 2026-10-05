@@ -509,7 +509,7 @@ function renderWithdrawalsTable(list) {
           <div class="emp-sub">${escapeHtml(w.email || '-')}</div>
         </td>
         <td><strong>${formatRupiah(w.amount)}</strong></td>
-        <td class="emp-sub">${formatRupiah(w.fee)}</td>
+        <td class="emp-sub">${Number(w.fee) > 0 ? formatRupiah(w.fee) : '<span style="color:var(--accent-mint); font-weight:500;">Rp 0 (Bebas Biaya)</span>'}</td>
         <td class="emp-salary">${formatRupiah(w.net_amount)}</td>
         <td>${escapeHtml(w.bank_name || '-')} (${escapeHtml(w.bank_account_masked || '-')})</td>
         <td class="emp-sub">${formatDateTime(w.created_at)}</td>
@@ -538,7 +538,7 @@ function renderOverviewWithdrawals(list) {
         <td><code>${escapeHtml(w.reference_id || (w.id ? w.id.substring(0, 8) : '-'))}</code></td>
         <td><strong>${escapeHtml(w.employee_name || '-')}</strong></td>
         <td>${formatRupiah(w.amount)}</td>
-        <td class="emp-sub">${formatRupiah(w.fee)}</td>
+        <td class="emp-sub">${Number(w.fee) > 0 ? formatRupiah(w.fee) : '<span style="color:var(--accent-mint); font-weight:500;">Rp 0 (Bebas Biaya)</span>'}</td>
         <td><span class="status-tag ${statusClass}">${statusLabel}</span></td>
       </tr>
     `;
