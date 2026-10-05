@@ -1,5 +1,6 @@
 // ===================================================================
-// Cashper HR Portal - Admin Logic (GitHub Pages Ready)
+// Cashper HR Portal - Admin Dashboard Logic
+// Clean Dashboard, Collapsible Sidebar, Google Icons, Zero Gradients
 // ===================================================================
 
 const DEFAULT_CONFIG = {
@@ -9,186 +10,101 @@ const DEFAULT_CONFIG = {
 
 let supabaseClient = null;
 let allEmployees = [];
+let allWithdrawals = [];
 
-// Initialize on DOM load
+// Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
   initSupabase();
-  updateRoleInfo();
-  loadConfigToInputs();
+  loadEmployees();
+  loadWithdrawals();
 });
 
 // -------------------------------------------------------------------
-// 1. Supabase Initialization
+// 1. Supabase Initialization (Silent, No connection banners/tabs)
 // -------------------------------------------------------------------
-function getSavedConfig() {
-  const savedUrl = localStorage.getItem('cashper_sb_url');
-  const savedKey = localStorage.getItem('cashper_sb_key');
-  return {
-    url: (savedUrl || DEFAULT_CONFIG.url).trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, ''),
-    anonKey: (savedKey || DEFAULT_CONFIG.anonKey).trim()
-  };
-}
-
 function initSupabase() {
-  const cfg = getSavedConfig();
   try {
-    supabaseClient = window.supabase.createClient(cfg.url, cfg.anonKey);
-    checkConnection();
+    const cleanUrl = DEFAULT_CONFIG.url.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
+    supabaseClient = window.supabase.createClient(cleanUrl, DEFAULT_CONFIG.anonKey);
   } catch (err) {
-    console.error('Supabase init error:', err);
-    updateConnectionStatus(false, 'Gagal Inisialisasi');
+    console.error('Supabase initialization failed:', err);
+    showToast('Gagal memuat client Supabase', 'error');
   }
 }
 
-async function checkConnection() {
-  updateConnectionStatus(null, 'Menghubungkan...');
-  try {
-    const { data, error } = await supabaseClient.from('roles').select('id, name, base_salary').limit(3);
-    if (error) throw error;
-    updateConnectionStatus(true, 'Terhubung ke Supabase');
-    loadEmployees();
-  } catch (err) {
-    console.warn('Connection check note:', err);
-    updateConnectionStatus(true, 'Supabase Siap');
-    loadEmployees();
-  }
-}
+// -------------------------------------------------------------------
+// 2. Sidebar & Navigation Logic
+// -------------------------------------------------------------------
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const appLayout = document.getElementById('appLayout');
 
-function updateConnectionStatus(isConnected, text) {
-  const pill = document.getElementById('connectionPill');
-  const dot = pill.querySelector('.status-dot');
-  const label = document.getElementById('connectionText');
-
-  label.textContent = text;
-  if (isConnected === true) {
-    dot.className = 'status-dot connected';
-  } else if (isConnected === false) {
-    dot.className = 'status-dot';
-    dot.style.background = '#FF4D6D';
+  if (window.innerWidth <= 900) {
+    sidebar.classList.toggle('mobile-open');
   } else {
-    dot.className = 'status-dot pulsing';
-    dot.style.background = '#f59e0b';
+    sidebar.classList.toggle('collapsed');
+    appLayout.classList.toggle('collapsed');
   }
 }
 
-// -------------------------------------------------------------------
-// 2. Tab Navigation
-// -------------------------------------------------------------------
-function switchTab(tabName) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+function navigate(sectionId) {
+  // Hide all sections
+  document.querySelectorAll('.content-section').forEach(sec => sec.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
 
-  if (tabName === 'register') {
-    document.getElementById('tabRegisterBtn').classList.add('active');
-    document.getElementById('panelRegister').classList.add('active');
-  } else if (tabName === 'list') {
-    document.getElementById('tabListBtn').classList.add('active');
-    document.getElementById('panelList').classList.add('active');
+  // Section titles
+  const titles = {
+    overview: 'Dashboard Ringkasan',
+    employees: 'Data & Direktori Karyawan',
+    withdrawals: 'Riwayat Transaksi EWA',
+    policy: 'Kebijakan & Aturan EWA'
+  };
+
+  const navMap = {
+    overview: 'navOverview',
+    employees: 'navEmployees',
+    withdrawals: 'navWithdrawals',
+    policy: 'navPolicy'
+  };
+
+  const sectionEl = document.getElementById('section' + sectionId.charAt(0).toUpperCase() + sectionId.slice(1));
+  const navEl = document.getElementById(navMap[sectionId]);
+  const titleEl = document.getElementById('pageTitle');
+
+  if (sectionEl) sectionEl.classList.add('active');
+  if (navEl) navEl.classList.add('active');
+  if (titleEl && titles[sectionId]) titleEl.textContent = titles[sectionId];
+
+  // Refresh data on navigation
+  if (sectionId === 'employees') loadEmployees();
+  if (sectionId === 'withdrawals') loadWithdrawals();
+  if (sectionId === 'overview') {
     loadEmployees();
-  } else if (tabName === 'config') {
-    document.getElementById('tabConfigBtn').classList.add('active');
-    document.getElementById('panelConfig').classList.add('active');
-  }
-}
-
-function updateRoleInfo() {
-  const select = document.getElementById('empRole');
-  const selectedOpt = select.options[select.selectedIndex];
-  const salary = parseInt(selectedOpt.getAttribute('data-salary') || '4000000', 10);
-  const maxEwa = salary * 0.4;
-  document.getElementById('roleInfoPreview').innerHTML = 
-    `Gaji Pokok: <strong>${formatRupiah(salary)}</strong> &bull; Limit Max EWA (40%): <strong>${formatRupiah(maxEwa)}</strong>`;
-}
-
-// -------------------------------------------------------------------
-// 3. Register Employee
-// -------------------------------------------------------------------
-async function handleRegisterEmployee(e) {
-  e.preventDefault();
-  const btn = document.getElementById('btnSubmitEmployee');
-  const btnText = document.getElementById('btnSubmitText');
-
-  const fullName = document.getElementById('empFullName').value.trim();
-  const email = document.getElementById('empEmail').value.trim().toLowerCase();
-  const password = document.getElementById('empPassword').value;
-  const roleId = parseInt(document.getElementById('empRole').value, 10);
-  const company = document.getElementById('empCompany').value.trim() || 'PT Maju Bersama';
-  const bankName = document.getElementById('empBank').value;
-  const accountNumber = document.getElementById('empAccountNumber').value.trim();
-  const payday = parseInt(document.getElementById('empPayday').value || '28', 10);
-
-  if (!fullName || !email || !password || !accountNumber) {
-    showToast('Harap lengkapi semua kolom bertanda bintang (*)', 'error');
-    return;
+    loadWithdrawals();
   }
 
-  // Set loading state
-  btn.classList.add('loading');
-  btn.disabled = true;
-  btnText.textContent = 'Mendaftarkan...';
-
-  try {
-    // Call RPC admin_register_employee
-    const { data, error } = await supabaseClient.rpc('admin_register_employee', {
-      p_email: email,
-      p_password: password,
-      p_full_name: fullName,
-      p_company: company,
-      p_role_id: roleId,
-      p_bank_name: bankName,
-      p_bank_account_number: accountNumber,
-      p_payday_day: payday
-    });
-
-    if (error) {
-      // Fallback if RPC admin_register_employee is not yet run in SQL Editor
-      if (error.message.includes('function') && error.message.includes('not found')) {
-        throw new Error('Fungsi admin_register_employee belum dipasang di SQL Editor Supabase! Jalankan skrip SQL di tab Koneksi Supabase.');
-      }
-      throw error;
-    }
-
-    // Success!
-    showToast(`Karyawan ${fullName} berhasil didaftarkan!`, 'success');
-    showSuccessModal({
-      name: fullName,
-      email: email,
-      password: password,
-      role: document.getElementById('empRole').options[document.getElementById('empRole').selectedIndex].text
-    });
-
-    document.getElementById('employeeForm').reset();
-    document.getElementById('empCompany').value = company;
-    document.getElementById('empPassword').value = 'cashper123';
-    updateRoleInfo();
-    loadEmployees();
-
-  } catch (err) {
-    console.error('Registration failed:', err);
-    showToast(err.message || 'Gagal mendaftarkan karyawan', 'error');
-  } finally {
-    btn.classList.remove('loading');
-    btn.disabled = false;
-    btnText.textContent = 'Daftarkan Karyawan';
+  // Close mobile sidebar if open
+  if (window.innerWidth <= 900) {
+    document.getElementById('sidebar').classList.remove('mobile-open');
   }
 }
 
 // -------------------------------------------------------------------
-// 4. Employee Directory
+// 3. Employee Management (List, Filter, Add, Edit, Toggle)
 // -------------------------------------------------------------------
 async function loadEmployees() {
   const tbody = document.getElementById('employeesTableBody');
-  tbody.innerHTML = '<tr><td colspan="7" class="table-empty">Memuat data dari Supabase...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="7" class="table-empty">Memuat data karyawan...</td></tr>';
 
   try {
-    // Try via RPC admin_get_employees
+    // Attempt 1: Call admin_get_employees RPC
     const { data: rpcData, error: rpcError } = await supabaseClient.rpc('admin_get_employees');
-    
+
     let list = [];
     if (!rpcError && Array.isArray(rpcData)) {
       list = rpcData;
     } else {
-      // Direct query fallback
+      // Fallback: Direct select on employees table
       const { data, error } = await supabaseClient
         .from('employees')
         .select('id, full_name, email, company, bank_name, bank_account_number, payday_day, is_active, created_at, role_id, roles(name, base_salary)')
@@ -199,7 +115,8 @@ async function loadEmployees() {
         id: e.id,
         full_name: e.full_name,
         email: e.email || '-',
-        company: e.company,
+        company: e.company || 'PT Maju Bersama',
+        role_id: e.role_id,
         role_name: e.roles?.name || (e.role_id === 1 ? 'Staff Operasional' : e.role_id === 2 ? 'Supervisor' : 'Manager'),
         base_salary: e.roles?.base_salary || (e.role_id === 1 ? 4000000 : e.role_id === 2 ? 7000000 : 12000000),
         bank_name: e.bank_name,
@@ -211,179 +128,414 @@ async function loadEmployees() {
     }
 
     allEmployees = list;
-    renderEmployeeTable(allEmployees);
-    updateStats(allEmployees);
+    renderEmployeesTable(allEmployees);
+    updateOverviewStats();
 
   } catch (err) {
-    console.error('Failed to load employees:', err);
-    tbody.innerHTML = `<tr><td colspan="7" class="table-empty" style="color: var(--red-accent);">Gagal memuat: ${err.message}</td></tr>`;
+    console.error('loadEmployees error:', err);
+    tbody.innerHTML = `<tr><td colspan="7" class="table-empty text-red">Gagal memuat: ${escapeHtml(err.message)}</td></tr>`;
   }
 }
 
-function renderEmployeeTable(employees) {
+function renderEmployeesTable(list) {
   const tbody = document.getElementById('employeesTableBody');
-  document.getElementById('tabCount').textContent = employees.length;
 
-  if (employees.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="table-empty">Belum ada karyawan yang terdaftar. Daftarkan sekarang di tab "Daftar Karyawan Baru".</td></tr>';
+  if (!list || list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="table-empty">Belum ada karyawan. Klik tombol "+ Tambah Karyawan" untuk mendaftarkan.</td></tr>';
     return;
   }
 
-  tbody.innerHTML = employees.map(emp => {
-    const maskedAcc = emp.bank_account_number 
+  tbody.innerHTML = list.map(emp => {
+    const maskedAcc = emp.bank_account_number
       ? emp.bank_account_number.slice(0, 3) + '••••' + emp.bank_account_number.slice(-3)
       : '-';
 
     const statusBadge = emp.is_active
-      ? '<span class="status-badge active">Aktif</span>'
-      : '<span class="status-badge inactive">Nonaktif</span>';
+      ? '<span class="status-tag active"><span class="material-symbols-rounded" style="font-size:14px;">check_circle</span> Aktif</span>'
+      : '<span class="status-tag inactive"><span class="material-symbols-rounded" style="font-size:14px;">cancel</span> Nonaktif</span>';
 
-    const toggleAction = emp.is_active
-      ? `<button class="btn btn-secondary btn-sm" onclick="toggleStatus('${emp.id}', false)">Nonaktifkan</button>`
-      : `<button class="btn btn-primary btn-sm" onclick="toggleStatus('${emp.id}', true)">Aktifkan</button>`;
+    const toggleText = emp.is_active ? 'Nonaktifkan' : 'Aktifkan';
 
     return `
       <tr>
         <td>
-          <div class="emp-name-cell">${escapeHtml(emp.full_name)}</div>
-          <div class="emp-email-sub">${escapeHtml(emp.email)}</div>
+          <div class="emp-name">${escapeHtml(emp.full_name)}</div>
+          <div class="emp-sub">${escapeHtml(emp.email)}</div>
         </td>
         <td>
-          <div>${escapeHtml(emp.role_name)}</div>
-          <div class="salary-tag">${formatRupiah(emp.base_salary)} / bln</div>
+          <div>${escapeHtml(emp.role_name || 'Staff')}</div>
+          <div class="emp-salary">${formatRupiah(emp.base_salary)}</div>
         </td>
         <td>${escapeHtml(emp.company || 'PT Maju Bersama')}</td>
         <td>
           <div><strong>${escapeHtml(emp.bank_name || '-')}</strong></div>
-          <div class="emp-email-sub">${maskedAcc}</div>
+          <div class="emp-sub">${maskedAcc}</div>
         </td>
         <td>Tgl ${emp.payday_day || 28}</td>
         <td>${statusBadge}</td>
-        <td>${toggleAction}</td>
+        <td>
+          <div class="table-row-actions">
+            <button class="btn btn-secondary btn-sm" onclick="openEditModalById('${emp.id}')" title="Edit Data Karyawan">
+              <span class="material-symbols-rounded" style="font-size: 16px;">edit</span>
+              <span>Edit</span>
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="toggleEmployeeStatus('${emp.id}', ${emp.is_active})" title="${toggleText}">
+              <span class="material-symbols-rounded" style="font-size: 16px;">${emp.is_active ? 'power_settings_new' : 'check'}</span>
+            </button>
+          </div>
+        </td>
       </tr>
     `;
   }).join('');
 }
 
 function filterEmployees() {
-  const q = document.getElementById('searchInput').value.trim().toLowerCase();
-  if (!q) {
-    renderEmployeeTable(allEmployees);
+  const query = (document.getElementById('employeeSearchInput').value || '').trim().toLowerCase();
+  if (!query) {
+    renderEmployeesTable(allEmployees);
     return;
   }
-  const filtered = allEmployees.filter(e => 
-    (e.full_name || '').toLowerCase().includes(q) ||
-    (e.email || '').toLowerCase().includes(q) ||
-    (e.company || '').toLowerCase().includes(q) ||
-    (e.role_name || '').toLowerCase().includes(q)
+
+  const filtered = allEmployees.filter(e =>
+    (e.full_name || '').toLowerCase().includes(query) ||
+    (e.email || '').toLowerCase().includes(query) ||
+    (e.company || '').toLowerCase().includes(query) ||
+    (e.bank_name || '').toLowerCase().includes(query) ||
+    (e.role_name || '').toLowerCase().includes(query)
   );
-  renderEmployeeTable(filtered);
+
+  renderEmployeesTable(filtered);
 }
 
-async function toggleStatus(id, newStatus) {
+// -------------------------------------------------------------------
+// 4. Modal Handlers (Add & Edit Employee)
+// -------------------------------------------------------------------
+function openAddEmployeeModal() {
+  document.getElementById('addEmployeeForm').reset();
+  document.getElementById('addCompany').value = 'PT Maju Bersama';
+  document.getElementById('addPassword').value = 'cashper123';
+  document.getElementById('addPayday').value = '28';
+  document.getElementById('addEmployeeModal').classList.add('show');
+}
+
+function closeModal(modalId) {
+  document.getElementById(modalId).classList.remove('show');
+}
+
+// Create Employee Handler
+async function handleCreateEmployee(e) {
+  e.preventDefault();
+  const btn = document.getElementById('btnSubmitAdd');
+  const btnText = document.getElementById('textSubmitAdd');
+
+  const fullName = document.getElementById('addFullName').value.trim();
+  const email = document.getElementById('addEmail').value.trim().toLowerCase();
+  const password = document.getElementById('addPassword').value;
+  const roleId = parseInt(document.getElementById('addRole').value, 10);
+  const company = document.getElementById('addCompany').value.trim() || 'PT Maju Bersama';
+  const bankName = document.getElementById('addBank').value;
+  const accountNumber = document.getElementById('addAccount').value.trim();
+  const payday = parseInt(document.getElementById('addPayday').value || '28', 10);
+
+  if (!fullName || !email || !password || !accountNumber) {
+    showToast('Lengkapi semua kolom formulir', 'error');
+    return;
+  }
+
+  btn.classList.add('loading');
+  btn.disabled = true;
+  btnText.textContent = 'Mendaftarkan...';
+
+  try {
+    const { data, error } = await supabaseClient.rpc('admin_register_employee', {
+      p_email: email,
+      p_password: password,
+      p_full_name: fullName,
+      p_company: company,
+      p_role_id: roleId,
+      p_bank_name: bankName,
+      p_bank_account_number: accountNumber,
+      p_payday_day: payday
+    });
+
+    if (error) throw error;
+
+    showToast(`Karyawan ${fullName} berhasil didaftarkan!`, 'success');
+    closeModal('addEmployeeModal');
+    loadEmployees();
+
+  } catch (err) {
+    console.error('Registration failed:', err);
+    showToast(err.message || 'Gagal mendaftarkan karyawan', 'error');
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+    btnText.textContent = 'Simpan & Daftarkan';
+  }
+}
+
+// Open Edit Modal with Employee Data
+function openEditModalById(empId) {
+  const emp = allEmployees.find(e => e.id === empId);
+  if (!emp) {
+    showToast('Data karyawan tidak ditemukan', 'error');
+    return;
+  }
+
+  document.getElementById('editEmployeeId').value = emp.id;
+  document.getElementById('editFullName').value = emp.full_name || '';
+  document.getElementById('editEmail').value = emp.email || '';
+  document.getElementById('editRole').value = emp.role_id || 1;
+  document.getElementById('editCompany').value = emp.company || 'PT Maju Bersama';
+  document.getElementById('editBank').value = emp.bank_name || 'BCA';
+  document.getElementById('editAccount').value = emp.bank_account_number || '';
+  document.getElementById('editPayday').value = emp.payday_day || 28;
+
+  document.getElementById('editEmployeeModal').classList.add('show');
+}
+
+// Update Employee Handler
+async function handleUpdateEmployee(e) {
+  e.preventDefault();
+  const btn = document.getElementById('btnSubmitEdit');
+  const btnText = document.getElementById('textSubmitEdit');
+
+  const empId = document.getElementById('editEmployeeId').value;
+  const fullName = document.getElementById('editFullName').value.trim();
+  const roleId = parseInt(document.getElementById('editRole').value, 10);
+  const company = document.getElementById('editCompany').value.trim() || 'PT Maju Bersama';
+  const bankName = document.getElementById('editBank').value;
+  const accountNumber = document.getElementById('editAccount').value.trim();
+  const payday = parseInt(document.getElementById('editPayday').value || '28', 10);
+
+  if (!empId || !fullName || !accountNumber) {
+    showToast('Lengkapi data sebelum menyimpan', 'error');
+    return;
+  }
+
+  btn.classList.add('loading');
+  btn.disabled = true;
+  btnText.textContent = 'Menyimpan...';
+
+  try {
+    // Call admin_update_employee RPC
+    const { data, error } = await supabaseClient.rpc('admin_update_employee', {
+      p_employee_id: empId,
+      p_full_name: fullName,
+      p_role_id: roleId,
+      p_company: company,
+      p_bank_name: bankName,
+      p_bank_account_number: accountNumber,
+      p_payday_day: payday
+    });
+
+    if (error) {
+      // Fallback: Direct table update
+      const { error: directErr } = await supabaseClient
+        .from('employees')
+        .update({
+          full_name: fullName,
+          role_id: roleId,
+          company: company,
+          bank_name: bankName,
+          bank_account_number: accountNumber,
+          payday_day: payday
+        })
+        .eq('id', empId);
+
+      if (directErr) throw directErr;
+    }
+
+    showToast(`Data karyawan ${fullName} berhasil diperbarui!`, 'success');
+    closeModal('editEmployeeModal');
+    loadEmployees();
+
+  } catch (err) {
+    console.error('Update failed:', err);
+    showToast(err.message || 'Gagal menyimpan perubahan karyawan', 'error');
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+    btnText.textContent = 'Simpan Perubahan';
+  }
+}
+
+// Toggle Employee Status
+async function toggleEmployeeStatus(empId, currentActive) {
+  const newStatus = !currentActive;
+  const actionName = newStatus ? 'mengaktifkan' : 'menonaktifkan';
+
   try {
     const { error } = await supabaseClient.rpc('admin_toggle_employee_status', {
-      p_employee_id: id,
+      p_employee_id: empId,
       p_active: newStatus
     });
 
     if (error) {
-      // Fallback direct update
-      const { error: updErr } = await supabaseClient
+      // Direct table fallback
+      const { error: directErr } = await supabaseClient
         .from('employees')
         .update({ is_active: newStatus })
-        .eq('id', id);
-      if (updErr) throw updErr;
+        .eq('id', empId);
+      if (directErr) throw directErr;
     }
 
-    showToast(`Status karyawan berhasil ${newStatus ? 'diaktifkan' : 'dinonaktifkan'}`, 'success');
+    showToast(`Berhasil ${actionName} karyawan`, 'success');
     loadEmployees();
   } catch (err) {
-    showToast('Gagal mengubah status: ' + err.message, 'error');
+    showToast(`Gagal: ${err.message}`, 'error');
   }
 }
 
-function updateStats(employees) {
-  document.getElementById('statTotalEmployees').textContent = employees.length;
-  const companies = new Set(employees.map(e => e.company).filter(Boolean));
-  document.getElementById('statCompanies').textContent = Math.max(companies.size, 1);
+// -------------------------------------------------------------------
+// 5. Withdrawals Management
+// -------------------------------------------------------------------
+async function loadWithdrawals() {
+  const tbodyFull = document.getElementById('withdrawalsTableBody');
+  const tbodyOverview = document.getElementById('overviewWithdrawalsBody');
+
+  tbodyFull.innerHTML = '<tr><td colspan="8" class="table-empty">Memuat transaksi...</td></tr>';
+  tbodyOverview.innerHTML = '<tr><td colspan="5" class="table-empty">Memuat transaksi...</td></tr>';
+
+  try {
+    // Call admin_get_withdrawals RPC
+    const { data: rpcData, error: rpcError } = await supabaseClient.rpc('admin_get_withdrawals');
+
+    let list = [];
+    if (!rpcError && Array.isArray(rpcData)) {
+      list = rpcData;
+    } else {
+      // Direct table query fallback
+      const { data, error } = await supabaseClient
+        .from('ewa_withdrawals')
+        .select('id, reference_id, amount, fee, net_amount, bank_name, bank_account_masked, status, created_at, employees(full_name, email)')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+      list = (data || []).map(w => ({
+        id: w.id,
+        reference_id: w.reference_id,
+        employee_name: w.employees?.full_name || 'Karyawan',
+        email: w.employees?.email || '-',
+        amount: w.amount,
+        fee: w.fee,
+        net_amount: w.net_amount,
+        bank_name: w.bank_name,
+        bank_account_masked: w.bank_account_masked,
+        status: w.status,
+        created_at: w.created_at
+      }));
+    }
+
+    allWithdrawals = list;
+    renderWithdrawalsTable(allWithdrawals);
+    renderOverviewWithdrawals(allWithdrawals.slice(0, 5));
+    updateOverviewStats();
+
+  } catch (err) {
+    console.error('loadWithdrawals error:', err);
+    tbodyFull.innerHTML = `<tr><td colspan="8" class="table-empty text-red">Gagal memuat: ${escapeHtml(err.message)}</td></tr>`;
+    tbodyOverview.innerHTML = `<tr><td colspan="5" class="table-empty text-red">Gagal memuat transaksi</td></tr>`;
+  }
+}
+
+function renderWithdrawalsTable(list) {
+  const tbody = document.getElementById('withdrawalsTableBody');
+
+  if (!list || list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="table-empty">Belum ada transaksi penarikan EWA.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = list.map(w => {
+    const statusClass = w.status === 'disbursed' || w.status === 'completed' ? 'disbursed' : 'pending';
+    const statusLabel = w.status === 'disbursed' || w.status === 'completed' ? 'Tersalurkan' : 'Diproses';
+
+    return `
+      <tr>
+        <td><code>${escapeHtml(w.reference_id || w.id.substring(0, 8))}</code></td>
+        <td>
+          <div class="emp-name">${escapeHtml(w.employee_name || '-')}</div>
+          <div class="emp-sub">${escapeHtml(w.email || '-')}</div>
+        </td>
+        <td><strong>${formatRupiah(w.amount)}</strong></td>
+        <td class="emp-sub">${formatRupiah(w.fee)}</td>
+        <td class="emp-salary">${formatRupiah(w.net_amount)}</td>
+        <td>${escapeHtml(w.bank_name || '-')} (${escapeHtml(w.bank_account_masked || '-')})</td>
+        <td class="emp-sub">${formatDateTime(w.created_at)}</td>
+        <td><span class="status-tag ${statusClass}">${statusLabel}</span></td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderOverviewWithdrawals(list) {
+  const tbody = document.getElementById('overviewWithdrawalsBody');
+
+  if (!list || list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="table-empty">Belum ada riwayat penarikan EWA.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = list.map(w => {
+    const statusClass = w.status === 'disbursed' || w.status === 'completed' ? 'disbursed' : 'pending';
+    const statusLabel = w.status === 'disbursed' || w.status === 'completed' ? 'Tersalurkan' : 'Diproses';
+
+    return `
+      <tr>
+        <td><code>${escapeHtml(w.reference_id || (w.id ? w.id.substring(0, 8) : '-'))}</code></td>
+        <td><strong>${escapeHtml(w.employee_name || '-')}</strong></td>
+        <td>${formatRupiah(w.amount)}</td>
+        <td class="emp-sub">${formatRupiah(w.fee)}</td>
+        <td><span class="status-tag ${statusClass}">${statusLabel}</span></td>
+      </tr>
+    `;
+  }).join('');
 }
 
 // -------------------------------------------------------------------
-// 5. Config Management
+// 6. Stats & Overview Calculation
 // -------------------------------------------------------------------
-function loadConfigToInputs() {
-  const cfg = getSavedConfig();
-  document.getElementById('cfgUrl').value = cfg.url;
-  document.getElementById('cfgAnonKey').value = cfg.anonKey;
-}
+function updateOverviewStats() {
+  // Total Employees
+  const totalEmpEl = document.getElementById('overviewTotalEmployees');
+  if (totalEmpEl) totalEmpEl.textContent = allEmployees.length;
 
-function saveCustomConfig(e) {
-  e.preventDefault();
-  const url = document.getElementById('cfgUrl').value.trim();
-  const key = document.getElementById('cfgAnonKey').value.trim();
+  // Withdrawals Summary
+  const totalWitEl = document.getElementById('overviewTotalWithdrawals');
+  const totalAmtEl = document.getElementById('overviewTotalAmount');
 
-  localStorage.setItem('cashper_sb_url', url);
-  localStorage.setItem('cashper_sb_key', key);
+  const disbursedList = allWithdrawals.filter(w => w.status === 'disbursed' || w.status === 'completed' || w.status === 'approved');
+  const totalDisbursedCount = disbursedList.length || allWithdrawals.length;
+  const totalDisbursedAmount = (disbursedList.length > 0 ? disbursedList : allWithdrawals)
+    .reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
-  showToast('Konfigurasi Supabase berhasil disimpan!', 'success');
-  initSupabase();
-  switchTab('list');
-}
-
-function resetDefaultConfig() {
-  localStorage.removeItem('cashper_sb_url');
-  localStorage.removeItem('cashper_sb_key');
-  loadConfigToInputs();
-  showToast('Konfigurasi dikembalikan ke default', 'success');
-  initSupabase();
+  if (totalWitEl) totalWitEl.textContent = totalDisbursedCount;
+  if (totalAmtEl) totalAmtEl.textContent = formatRupiah(totalDisbursedAmount);
 }
 
 // -------------------------------------------------------------------
-// 6. Modal & Helpers
+// 7. Helpers & Toast
 // -------------------------------------------------------------------
-function showSuccessModal(data) {
-  document.getElementById('modalName').textContent = data.name;
-  document.getElementById('modalEmail').textContent = data.email;
-  document.getElementById('modalPassword').textContent = data.password;
-  document.getElementById('modalRole').textContent = data.role;
-  document.getElementById('successModal').classList.add('show');
+function formatRupiah(amount) {
+  return 'Rp ' + Number(amount || 0).toLocaleString('id-ID');
 }
 
-function closeSuccessModal() {
-  document.getElementById('successModal').classList.remove('show');
-}
-
-function copyCredentialsAndClose() {
-  const email = document.getElementById('modalEmail').textContent;
-  const pass = document.getElementById('modalPassword').textContent;
-  const text = `Akun Cashper Anda Siap!\nEmail: ${email}\nPassword: ${pass}\nSilakan login di aplikasi Android Cashper.`;
-  
-  navigator.clipboard.writeText(text).then(() => {
-    showToast('Kredensial berhasil disalin ke clipboard!', 'success');
-  }).catch(() => {
-    showToast('Kredensial siap digunakan.', 'success');
+function formatDateTime(isoString) {
+  if (!isoString) return '-';
+  const d = new Date(isoString);
+  return d.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit'
   });
-
-  closeSuccessModal();
-}
-
-function togglePasswordVisibility(fieldId) {
-  const el = document.getElementById(fieldId);
-  el.type = el.type === 'password' ? 'text' : 'password';
-}
-
-function resetForm() {
-  setTimeout(updateRoleInfo, 100);
-}
-
-function formatRupiah(num) {
-  return 'Rp ' + Number(num || 0).toLocaleString('id-ID');
 }
 
 function escapeHtml(str) {
   if (!str) return '';
-  return str.replace(/[&<>'"]/g, tag => ({
+  return String(str).replace(/[&<>'"]/g, tag => ({
     '&': '&amp;',
     '<': '&lt;',
     '>': '&gt;',
@@ -394,15 +546,22 @@ function escapeHtml(str) {
 
 function showToast(message, type = 'info') {
   const container = document.getElementById('toastContainer');
+  if (!container) return;
+
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
-  toast.innerHTML = `<span>${type === 'success' ? '✅' : type === 'error' ? '⚠️' : 'ℹ️'}</span> <span>${escapeHtml(message)}</span>`;
+
+  const iconName = type === 'success' ? 'check_circle' : type === 'error' ? 'error' : 'info';
+  toast.innerHTML = `
+    <span class="material-symbols-rounded" style="font-size: 18px;">${iconName}</span>
+    <span>${escapeHtml(message)}</span>
+  `;
   container.appendChild(toast);
 
   setTimeout(() => {
     toast.style.opacity = '0';
-    toast.style.transform = 'translateY(10px)';
-    toast.style.transition = 'all 0.3s ease';
-    setTimeout(() => toast.remove(), 300);
-  }, 4000);
+    toast.style.transform = 'translateY(8px)';
+    toast.style.transition = 'all 0.25s ease';
+    setTimeout(() => toast.remove(), 250);
+  }, 3500);
 }
