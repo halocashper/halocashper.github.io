@@ -46,6 +46,11 @@
           <span class="nav-label">Transaksi EWA</span>
         </button>
 
+        <button class="nav-item" id="navPayroll" onclick="navigate('payroll')">
+          <span class="material-symbols-rounded">account_balance</span>
+          <span class="nav-label">Rekap Payroll</span>
+        </button>
+
         <button class="nav-item" id="navPolicy" onclick="navigate('policy')">
           <span class="material-symbols-rounded">policy</span>
           <span class="nav-label">Kebijakan EWA</span>
@@ -259,6 +264,14 @@
               </div>
             </div>
 
+            <!-- Auto-validation notice for HR Admin -->
+            <div class="info-alert">
+              <span class="material-symbols-rounded text-purple">verified_user</span>
+              <div>
+                <strong>Validasi Sistem Otomatis Aktif</strong>: Sistem Cashper secara instan memvalidasi limit penarikan berdasarkan hari kerja riil dan batas keamanan 40%. Penarikan otomatis berstatus <strong>Tersalurkan</strong> tanpa perlu persetujuan manual admin. Seluruh dana yang ditarik otomatis terakumulasi di tab <strong>Rekap Payroll</strong> untuk dipotong saat tanggal gajian (Payday).
+              </div>
+            </div>
+
             <div class="table-responsive">
               <table class="simple-table">
                 <thead>
@@ -281,7 +294,86 @@
           </div>
         </section>
 
-        <!-- SECTION 4: KEBIJAKAN EWA -->
+        <!-- SECTION 4: REKAP PAYROLL (PEMOTONGAN GAJI BULANAN) -->
+        <section id="sectionPayroll" class="content-section">
+          <div class="panel-card">
+            <div class="panel-header table-toolbar">
+              <div>
+                <div class="panel-title-group">
+                  <span class="material-symbols-rounded text-purple">account_balance</span>
+                  <h3 class="panel-title">Laporan Rekap Pemotongan Gaji (Payroll Deduction)</h3>
+                </div>
+                <p class="section-subtitle" style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">
+                  Gunakan rekap ini saat proses penggajian akhir bulan (Payday) untuk memotong total EWA yang sudah ditarik karyawan.
+                </p>
+              </div>
+              <div class="toolbar-actions">
+                <button class="btn btn-secondary btn-sm" onclick="copyPayrollRecap()" title="Salin Ringkasan Text">
+                  <span class="material-symbols-rounded">content_copy</span>
+                  <span>Salin Rekap</span>
+                </button>
+                <button class="btn btn-primary btn-sm" onclick="window.print()" title="Cetak Slip / Laporan">
+                  <span class="material-symbols-rounded">print</span>
+                  <span>Cetak Laporan</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Payroll Summary Metric Cards -->
+            <div class="stats-grid" style="margin-bottom: 20px;">
+              <div class="stat-card">
+                <div class="stat-icon-wrapper purple">
+                  <span class="material-symbols-rounded">payments</span>
+                </div>
+                <div class="stat-data">
+                  <span class="stat-caption">Total Potongan EWA Bulan Ini</span>
+                  <span class="stat-number" id="payrollTotalDeduction">Rp 0</span>
+                </div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-icon-wrapper mint">
+                  <span class="material-symbols-rounded">account_balance_wallet</span>
+                </div>
+                <div class="stat-data">
+                  <span class="stat-caption">Total Net Payroll Ditransfer</span>
+                  <span class="stat-number" id="payrollTotalNetPay">Rp 0</span>
+                </div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-icon-wrapper blue">
+                  <span class="material-symbols-rounded">group</span>
+                </div>
+                <div class="stat-data">
+                  <span class="stat-caption">Karyawan Memanfaatkan EWA</span>
+                  <span class="stat-number" id="payrollEmployeesWithdrawn">0</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="simple-table" id="payrollReportTable">
+                <thead>
+                  <tr>
+                    <th>Karyawan</th>
+                    <th>Jabatan & Bank</th>
+                    <th>Gaji Pokok Bulanan</th>
+                    <th>Total EWA Ditarik</th>
+                    <th>Frekuensi Tarik</th>
+                    <th>Sisa Gaji Bersih (Ditransfer Payday)</th>
+                    <th>Status Payroll</th>
+                  </tr>
+                </thead>
+                <tbody id="payrollTableBody">
+                  <tr><td colspan="7" class="table-empty">Memuat rekap pemotongan payroll...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 5: KEBIJAKAN EWA -->
         <section id="sectionPolicy" class="content-section">
           <div class="panel-card">
             <div class="panel-header">
