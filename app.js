@@ -219,6 +219,7 @@ function openAddEmployeeModal() {
   document.getElementById('addEmployeeForm').reset();
   document.getElementById('addCompany').value = 'PT Maju Bersama';
   document.getElementById('addPassword').value = 'cashper123';
+  document.getElementById('addBank').value = 'BRI';
   document.getElementById('addPayday').value = '28';
   document.getElementById('addEmployeeModal').classList.add('show');
 }
@@ -707,7 +708,7 @@ async function loadPayrollRecap() {
 
   if (deductionEl) deductionEl.textContent = formatRupiah(totalDeductionAll);
   if (netPayEl) netPayEl.textContent = formatRupiah(totalNetPayAll);
-  if (countEl) countEl.textContent = `${activeEwaCount} dari ${allEmployees.length} Karyawan`;
+  if (countEl) countEl.textContent = `${activeEwaCount} Karyawan`;
 }
 
 function copyPayrollRecap() {
