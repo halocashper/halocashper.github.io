@@ -454,6 +454,13 @@ function renderWithdrawalsTable(list) {
     const statusClass = isSuccess ? 'disbursed' : 'pending';
     const statusLabel = isSuccess ? 'Tersalurkan' : 'Diproses';
 
+    const actionCell = isSuccess
+      ? `<span style="font-size: 0.76rem; color: var(--text-muted);">Selesai</span>`
+      : `<button class="btn btn-primary btn-sm" onclick="markWithdrawalSuccess('${w.id}')" title="Selesaikan transaksi ini">
+           <span class="material-symbols-rounded" style="font-size: 15px;">check_circle</span>
+           <span>Selesaikan</span>
+         </button>`;
+
     return `
       <tr>
         <td><code>${escapeHtml(w.reference_id || w.id.substring(0, 8))}</code></td>
@@ -467,6 +474,7 @@ function renderWithdrawalsTable(list) {
         <td>${escapeHtml(w.bank_name || '-')} (${escapeHtml(w.bank_account_masked || '-')})</td>
         <td class="emp-sub">${formatDateTime(w.created_at)}</td>
         <td><span class="status-tag ${statusClass}">${statusLabel}</span></td>
+        <td style="text-align: right;">${actionCell}</td>
       </tr>
     `;
   }).join('');
@@ -516,6 +524,30 @@ function updateOverviewStats() {
 
   if (totalWitEl) totalWitEl.textContent = totalDisbursedCount;
   if (totalAmtEl) totalAmtEl.textContent = formatRupiah(totalDisbursedAmount);
+}
+
+// Mark pending withdrawal as success (Tersalurkan)
+async function markWithdrawalSuccess(id) {
+  try {
+    const { error } = await supabaseClient.rpc('admin_set_withdrawal_status', {
+      p_withdrawal_id: id,
+      p_status: 'success'
+    });
+
+    if (error) {
+      // Direct table fallback
+      const { error: directErr } = await supabaseClient
+        .from('ewa_withdrawals')
+        .update({ status: 'success' })
+        .eq('id', id);
+      if (directErr) throw directErr;
+    }
+
+    showToast('Transaksi berhasil diselesaikan & berstatus Tersalurkan!', 'success');
+    loadWithdrawals();
+  } catch (err) {
+    showToast('Gagal mengubah status: ' + err.message, 'error');
+  }
 }
 
 // -------------------------------------------------------------------
