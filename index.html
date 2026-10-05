@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cashper HR Portal - Registrasi & Manajemen Karyawan</title>
+  <meta name="description" content="Portal Admin HRD Cashper untuk mendaftarkan akun karyawan dan mengatur limit Earned Wage Access (EWA).">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <!-- Supabase JS Client CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <div class="ambient-glow top-left"></div>
+  <div class="ambient-glow bottom-right"></div>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="container header-container">
+      <div class="brand">
+        <div class="brand-logo">
+          <svg viewBox="0 0 40 40" width="36" height="36" fill="none">
+            <rect width="40" height="40" rx="12" fill="url(#brandGrad)" />
+            <path d="M20 9C14.5 9 11 13 11 18.5V31L14 28.5L17 31L20 28.5L23 31L26 28.5L29 31V18.5C29 13 25.5 9 20 9Z" fill="white"/>
+            <circle cx="16.5" cy="17" r="1.75" fill="#6A1B9A"/>
+            <circle cx="23.5" cy="17" r="1.75" fill="#6A1B9A"/>
+            <path d="M18 20.5C18.8 21.5 21.2 21.5 22 20.5" stroke="#6A1B9A" stroke-width="1.5" stroke-linecap="round"/>
+            <defs>
+              <linearGradient id="brandGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#6A1B9A"/>
+                <stop offset="1" stop-color="#BF5AE8"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <div>
+          <div class="brand-title">Cashper <span class="badge badge-purple">HR Admin</span></div>
+          <div class="brand-subtitle">Portal Registrasi Karyawan & Payroll EWA</div>
+        </div>
+      </div>
+
+      <div class="header-status">
+        <div class="status-indicator" id="connectionPill">
+          <span class="status-dot pulsing"></span>
+          <span id="connectionText">Memeriksa Supabase...</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="container main-content">
+    
+    <!-- Hero / Stats Bar -->
+    <section class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon purple-bg">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+        </div>
+        <div>
+          <div class="stat-label">Total Karyawan Terdaftar</div>
+          <div class="stat-value" id="statTotalEmployees">0</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon mint-bg">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+          </svg>
+        </div>
+        <div>
+          <div class="stat-label">Perusahaan Mitra</div>
+          <div class="stat-value" id="statCompanies">1</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon pink-bg">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="1" x2="12" y2="23"></line>
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+          </svg>
+        </div>
+        <div>
+          <div class="stat-label">Plafon Maksimal EWA</div>
+          <div class="stat-value">40% <span class="stat-unit">Gaji Pokok</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Navigation Tabs -->
+    <div class="tabs-container">
+      <button class="tab-btn active" id="tabRegisterBtn" onclick="switchTab('register')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+          <circle cx="9" cy="7" r="4"></circle>
+          <line x1="19" y1="8" x2="19" y2="14"></line>
+          <line x1="22" y1="11" x2="16" y2="11"></line>
+        </svg>
+        Daftar Karyawan Baru
+      </button>
+      <button class="tab-btn" id="tabListBtn" onclick="switchTab('list')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="8" y1="6" x2="21" y2="6"></line>
+          <line x1="8" y1="12" x2="21" y2="12"></line>
+          <line x1="8" y1="18" x2="21" y2="18"></line>
+          <line x1="3" y1="6" x2="3.01" y2="6"></line>
+          <line x1="3" y1="12" x2="3.01" y2="12"></line>
+          <line x1="3" y1="18" x2="3.01" y2="18"></line>
+        </svg>
+        Daftar Karyawan (<span id="tabCount">0</span>)
+      </button>
+      <button class="tab-btn" id="tabConfigBtn" onclick="switchTab('config')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+        Koneksi Supabase
+      </button>
+    </div>
+
+    <!-- TAB 1: FORM PENDAFTARAN KARYAWAN -->
+    <section id="panelRegister" class="tab-panel active">
+      <div class="card form-card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Registrasi Karyawan Perusahaan</h2>
+            <p class="card-desc">Karyawan yang didaftarkan di sini akan langsung dapat login di aplikasi Android Cashper menggunakan email dan password yang Anda tentukan.</p>
+          </div>
+          <span class="badge badge-mint">Auto-Confirm Akun</span>
+        </div>
+
+        <form id="employeeForm" onsubmit="handleRegisterEmployee(event)">
+          <div class="form-grid">
+            
+            <div class="form-group full-width">
+              <label for="empFullName">Nama Lengkap Karyawan <span class="required">*</span></label>
+              <input type="text" id="empFullName" placeholder="Contoh: Budi Santoso" required>
+            </div>
+
+            <div class="form-group">
+              <label for="empEmail">Email Perusahaan / Login <span class="required">*</span></label>
+              <input type="email" id="empEmail" placeholder="contoh: budi@perusahaan.com" required>
+              <small class="field-hint">Email ini digunakan karyawan saat login di aplikasi.</small>
+            </div>
+
+            <div class="form-group">
+              <label for="empPassword">Kata Sandi Awal <span class="required">*</span></label>
+              <div class="password-input-wrapper">
+                <input type="password" id="empPassword" placeholder="Minimal 6 karakter" value="cashper123" required minlength="6">
+                <button type="button" class="btn-icon" onclick="togglePasswordVisibility('empPassword')">👁️</button>
+              </div>
+              <small class="field-hint">Karyawan dapat menggunakan sandi ini untuk login pertama kali.</small>
+            </div>
+
+            <div class="form-group">
+              <label for="empRole">Jabatan / Role Gaji <span class="required">*</span></label>
+              <select id="empRole" onchange="updateRoleInfo()" required>
+                <option value="1" data-salary="4000000">Staff Operasional / Kurir (Rp4.000.000 / bln)</option>
+                <option value="2" data-salary="7000000">Supervisor / Staff Admin (Rp7.000.000 / bln)</option>
+                <option value="3" data-salary="12000000">Manager (Rp12.000.000 / bln)</option>
+              </select>
+              <div class="role-badge" id="roleInfoPreview">
+                Limit Max EWA (40%): <strong>Rp1.600.000</strong>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="empCompany">Nama Perusahaan <span class="required">*</span></label>
+              <input type="text" id="empCompany" value="PT Maju Bersama" required>
+            </div>
+
+            <div class="form-group">
+              <label for="empBank">Nama Bank Pencairan <span class="required">*</span></label>
+              <select id="empBank" required>
+                <option value="BCA">BCA (Bank Central Asia)</option>
+                <option value="Mandiri">Bank Mandiri</option>
+                <option value="BRI">BRI (Bank Rakyat Indonesia)</option>
+                <option value="BNI">BNI (Bank Negara Indonesia)</option>
+                <option value="BSI">BSI (Bank Syariah Indonesia)</option>
+                <option value="CIMB Niaga">CIMB Niaga</option>
+                <option value="Bank Jago">Bank Jago</option>
+                <option value="Seabank">SeaBank</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="empAccountNumber">Nomor Rekening <span class="required">*</span></label>
+              <input type="text" id="empAccountNumber" placeholder="Contoh: 8835124821" required>
+            </div>
+
+            <div class="form-group">
+              <label for="empPayday">Tanggal Gajian (Payday) Tiap Bulan</label>
+              <input type="number" id="empPayday" value="28" min="1" max="31" required>
+            </div>
+
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="btnSubmitEmployee">
+              <span class="btn-spinner" id="btnSpinner"></span>
+              <span id="btnSubmitText">Daftarkan Karyawan</span>
+            </button>
+            <button type="reset" class="btn btn-secondary" onclick="resetForm()">Reset Form</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- TAB 2: DAFTAR KARYAWAN -->
+    <section id="panelList" class="tab-panel">
+      <div class="card table-card">
+        <div class="card-header table-header">
+          <div>
+            <h2 class="card-title">Direktori Karyawan Terdaftar</h2>
+            <p class="card-desc">Semua karyawan di bawah ini memiliki hak akses untuk login ke aplikasi Cashper.</p>
+          </div>
+          <div class="table-actions">
+            <input type="text" id="searchInput" placeholder="Cari nama, email, jabatan..." oninput="filterEmployees()">
+            <button class="btn btn-secondary btn-sm" onclick="loadEmployees()">
+              🔄 Segarkan
+            </button>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Karyawan</th>
+                <th>Jabatan & Gaji</th>
+                <th>Perusahaan</th>
+                <th>Rekening Pencairan</th>
+                <th>Gajian</th>
+                <th>Status</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="employeesTableBody">
+              <tr>
+                <td colspan="7" class="table-empty">Memuat data karyawan...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: CONFIG -->
+    <section id="panelConfig" class="tab-panel">
+      <div class="card form-card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Koneksi Database Supabase</h2>
+            <p class="card-desc">Konfigurasi project Supabase Anda. Tersimpan aman di browser (localStorage).</p>
+          </div>
+        </div>
+
+        <form id="configForm" onsubmit="saveCustomConfig(event)">
+          <div class="form-grid">
+            <div class="form-group full-width">
+              <label for="cfgUrl">Supabase Project URL</label>
+              <input type="url" id="cfgUrl" required>
+            </div>
+            <div class="form-group full-width">
+              <label for="cfgAnonKey">Supabase Anon Key</label>
+              <textarea id="cfgAnonKey" rows="3" required></textarea>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Simpan & Sambungkan Ulang</button>
+            <button type="button" class="btn btn-secondary" onclick="resetDefaultConfig()">Kembalikan ke Default</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Modal Sukses Karyawan Terdaftar -->
+  <div class="modal-backdrop" id="successModal">
+    <div class="modal-card">
+      <div class="modal-icon-badge">🎉</div>
+      <h3 class="modal-title">Karyawan Berhasil Didaftarkan!</h3>
+      <p class="modal-desc">Akun berikut sudah aktif dan siap login langsung di aplikasi Android Cashper:</p>
+      
+      <div class="credential-box">
+        <div class="cred-row">
+          <span class="cred-label">Nama:</span>
+          <span class="cred-value" id="modalName">-</span>
+        </div>
+        <div class="cred-row">
+          <span class="cred-label">Email Login:</span>
+          <span class="cred-value highlight" id="modalEmail">-</span>
+        </div>
+        <div class="cred-row">
+          <span class="cred-label">Password:</span>
+          <span class="cred-value highlight" id="modalPassword">-</span>
+        </div>
+        <div class="cred-row">
+          <span class="cred-label">Jabatan / Gaji:</span>
+          <span class="cred-value" id="modalRole">-</span>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-primary" onclick="copyCredentialsAndClose()">Salin Kredensial & Tutup</button>
+        <button class="btn btn-secondary" onclick="closeSuccessModal()">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <footer class="footer">
+    <div class="container footer-content">
+      <span>© 2026 Cashper EWA HR Platform. Ready for GitHub Pages.</span>
+      <span class="footer-security">🛡️ Terintegrasi Supabase PostgreSQL Row Level Security</span>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
