@@ -57,6 +57,7 @@ function navigate(sectionId) {
     overview: 'Dashboard Ringkasan',
     employees: 'Data & Direktori Karyawan',
     withdrawals: 'Riwayat Transaksi EWA',
+    payroll: 'Rekap Pemotongan Payroll',
     policy: 'Kebijakan & Aturan EWA'
   };
 
@@ -64,6 +65,7 @@ function navigate(sectionId) {
     overview: 'navOverview',
     employees: 'navEmployees',
     withdrawals: 'navWithdrawals',
+    payroll: 'navPayroll',
     policy: 'navPolicy'
   };
 
@@ -78,6 +80,7 @@ function navigate(sectionId) {
   // Refresh data on navigation
   if (sectionId === 'employees') loadEmployees();
   if (sectionId === 'withdrawals') loadWithdrawals();
+  if (sectionId === 'payroll') loadPayrollRecap();
   if (sectionId === 'overview') {
     loadEmployees();
     loadWithdrawals();
@@ -513,6 +516,113 @@ function updateOverviewStats() {
 
   if (totalWitEl) totalWitEl.textContent = totalDisbursedCount;
   if (totalAmtEl) totalAmtEl.textContent = formatRupiah(totalDisbursedAmount);
+}
+
+// -------------------------------------------------------------------
+// 7. Payroll Deduction (Pemotongan Gaji Akhir Bulan)
+// -------------------------------------------------------------------
+async function loadPayrollRecap() {
+  const tbody = document.getElementById('payrollTableBody');
+  tbody.innerHTML = '<tr><td colspan="7" class="table-empty">Menghitung rekap payroll karyawan...</td></tr>';
+
+  // Make sure both employees and withdrawals are loaded
+  if (allEmployees.length === 0) {
+    await loadEmployees();
+  }
+  if (allWithdrawals.length === 0) {
+    await loadWithdrawals();
+  }
+
+  if (allEmployees.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="table-empty">Belum ada data karyawan.</td></tr>';
+    return;
+  }
+
+  let totalDeductionAll = 0;
+  let totalNetPayAll = 0;
+  let activeEwaCount = 0;
+
+  const rows = allEmployees.map(emp => {
+    const empWithdrawals = allWithdrawals.filter(w => {
+      const matchEmail = w.email && emp.email && w.email.toLowerCase() === emp.email.toLowerCase();
+      const matchName = w.employee_name && emp.full_name && w.employee_name.toLowerCase() === emp.full_name.toLowerCase();
+      return matchEmail || matchName;
+    });
+
+    const totalEwa = empWithdrawals.reduce((sum, w) => sum + Number(w.amount || 0), 0);
+    const countEwa = empWithdrawals.length;
+    const baseSalary = Number(emp.base_salary || 4000000);
+    const netPayday = Math.max(0, baseSalary - totalEwa);
+
+    totalDeductionAll += totalEwa;
+    totalNetPayAll += netPayday;
+    if (countEwa > 0) activeEwaCount++;
+
+    const statusBadge = countEwa > 0
+      ? '<span class="status-tag active"><span class="material-symbols-rounded" style="font-size:14px;">cut</span> Potong Slip Payday</span>'
+      : '<span class="status-tag" style="background-color: var(--border-subtle); color: var(--text-muted);"><span class="material-symbols-rounded" style="font-size:14px;">check</span> Gaji Utuh</span>';
+
+    return `
+      <tr>
+        <td>
+          <div class="emp-name">${escapeHtml(emp.full_name)}</div>
+          <div class="emp-sub">${escapeHtml(emp.email)}</div>
+        </td>
+        <td>
+          <div>${escapeHtml(emp.role_name || 'Staff')}</div>
+          <div class="emp-sub">${escapeHtml(emp.bank_name || '-')}</div>
+        </td>
+        <td><strong>${formatRupiah(baseSalary)}</strong></td>
+        <td><strong class="text-purple">${formatRupiah(totalEwa)}</strong></td>
+        <td>${countEwa}x Tarik</td>
+        <td><strong class="text-green">${formatRupiah(netPayday)}</strong></td>
+        <td>${statusBadge}</td>
+      </tr>
+    `;
+  }).join('');
+
+  tbody.innerHTML = rows;
+
+  // Update Summary Metrics
+  const deductionEl = document.getElementById('payrollTotalDeduction');
+  const netPayEl = document.getElementById('payrollTotalNetPay');
+  const countEl = document.getElementById('payrollEmployeesWithdrawn');
+
+  if (deductionEl) deductionEl.textContent = formatRupiah(totalDeductionAll);
+  if (netPayEl) netPayEl.textContent = formatRupiah(totalNetPayAll);
+  if (countEl) countEl.textContent = `${activeEwaCount} dari ${allEmployees.length} Karyawan`;
+}
+
+function copyPayrollRecap() {
+  if (allEmployees.length === 0) {
+    showToast('Tidak ada data payroll untuk disalin', 'error');
+    return;
+  }
+
+  let text = `REKAP PEMOTONGAN GAJI (PAYROLL DEDUCTION) - CASHPER\n`;
+  text += `Periode: Bulan Berjalan\n`;
+  text += `------------------------------------------------------------\n`;
+  text += `Nama | Gaji Pokok | Total EWA Ditarik | Sisa Ditransfer Payday\n`;
+  text += `------------------------------------------------------------\n`;
+
+  allEmployees.forEach(emp => {
+    const empWithdrawals = allWithdrawals.filter(w => 
+      (w.email && emp.email && w.email.toLowerCase() === emp.email.toLowerCase()) ||
+      (w.employee_name && emp.full_name && w.employee_name.toLowerCase() === emp.full_name.toLowerCase())
+    );
+    const totalEwa = empWithdrawals.reduce((sum, w) => sum + Number(w.amount || 0), 0);
+    const base = Number(emp.base_salary || 0);
+    const net = Math.max(0, base - totalEwa);
+    text += `${emp.full_name} | ${formatRupiah(base)} | ${formatRupiah(totalEwa)} | ${formatRupiah(net)}\n`;
+  });
+
+  text += `------------------------------------------------------------\n`;
+
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('Rekap payroll berhasil disalin ke clipboard!', 'success');
+  }).catch(() => {
+    showToast('Gagal menyalin ke clipboard', 'error');
+  });
 }
 
 // -------------------------------------------------------------------
