@@ -329,7 +329,7 @@ function openEditModalById(empId) {
   document.getElementById('editEmail').value = emp.email || '';
   document.getElementById('editRole').value = emp.role_id || 1;
   document.getElementById('editCompany').value = emp.company || 'PT Maju Bersama';
-  document.getElementById('editBank').value = emp.bank_name || 'BCA';
+  document.getElementById('editBank').value = emp.bank_name || 'BRI';
   document.getElementById('editAccount').value = emp.bank_account_number || '';
   document.getElementById('editPayday').value = emp.payday_day || 28;
 
