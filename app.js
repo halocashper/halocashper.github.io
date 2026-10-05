@@ -57,16 +57,14 @@ function navigate(sectionId) {
     overview: 'Dashboard Ringkasan',
     employees: 'Data & Direktori Karyawan',
     withdrawals: 'Riwayat Transaksi EWA',
-    payroll: 'Rekap Pemotongan Payroll',
-    policy: 'Kebijakan & Aturan EWA'
+    payroll: 'Rekap Pemotongan Payroll'
   };
 
   const navMap = {
     overview: 'navOverview',
     employees: 'navEmployees',
     withdrawals: 'navWithdrawals',
-    payroll: 'navPayroll',
-    policy: 'navPolicy'
+    payroll: 'navPayroll'
   };
 
   const sectionEl = document.getElementById('section' + sectionId.charAt(0).toUpperCase() + sectionId.slice(1));
@@ -452,8 +450,9 @@ function renderWithdrawalsTable(list) {
   }
 
   tbody.innerHTML = list.map(w => {
-    const statusClass = w.status === 'disbursed' || w.status === 'completed' ? 'disbursed' : 'pending';
-    const statusLabel = w.status === 'disbursed' || w.status === 'completed' ? 'Tersalurkan' : 'Diproses';
+    const isSuccess = w.status === 'success' || w.status === 'disbursed' || w.status === 'completed';
+    const statusClass = isSuccess ? 'disbursed' : 'pending';
+    const statusLabel = isSuccess ? 'Tersalurkan' : 'Diproses';
 
     return `
       <tr>
@@ -482,8 +481,9 @@ function renderOverviewWithdrawals(list) {
   }
 
   tbody.innerHTML = list.map(w => {
-    const statusClass = w.status === 'disbursed' || w.status === 'completed' ? 'disbursed' : 'pending';
-    const statusLabel = w.status === 'disbursed' || w.status === 'completed' ? 'Tersalurkan' : 'Diproses';
+    const isSuccess = w.status === 'success' || w.status === 'disbursed' || w.status === 'completed';
+    const statusClass = isSuccess ? 'disbursed' : 'pending';
+    const statusLabel = isSuccess ? 'Tersalurkan' : 'Diproses';
 
     return `
       <tr>
@@ -509,7 +509,7 @@ function updateOverviewStats() {
   const totalWitEl = document.getElementById('overviewTotalWithdrawals');
   const totalAmtEl = document.getElementById('overviewTotalAmount');
 
-  const disbursedList = allWithdrawals.filter(w => w.status === 'disbursed' || w.status === 'completed' || w.status === 'approved');
+  const disbursedList = allWithdrawals.filter(w => w.status === 'success' || w.status === 'disbursed' || w.status === 'completed' || w.status === 'approved');
   const totalDisbursedCount = disbursedList.length || allWithdrawals.length;
   const totalDisbursedAmount = (disbursedList.length > 0 ? disbursedList : allWithdrawals)
     .reduce((sum, item) => sum + Number(item.amount || 0), 0);
