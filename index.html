@@ -410,16 +410,10 @@
 
             <div class="form-group">
               <label>Bank Pencairan <span class="required">*</span></label>
-              <select id="addBank" required>
+              <select id="addBank" required style="cursor: not-allowed; background: var(--bg-hover);">
                 <option value="BRI" selected>BRI (Bank Rakyat Indonesia)</option>
-                <option value="BCA">BCA (Bank Central Asia)</option>
-                <option value="Mandiri">Bank Mandiri</option>
-                <option value="BNI">BNI</option>
-                <option value="BSI">BSI</option>
-                <option value="CIMB Niaga">CIMB Niaga</option>
-                <option value="Bank Jago">Bank Jago</option>
-                <option value="Seabank">SeaBank</option>
               </select>
+              <small class="hint">Bank payroll mitra resmi perusahaan (khusus BRI).</small>
             </div>
 
             <div class="form-group">
@@ -490,16 +484,10 @@
 
             <div class="form-group">
               <label>Bank Pencairan <span class="required">*</span></label>
-              <select id="editBank" required>
-                <option value="BCA">BCA</option>
-                <option value="Mandiri">Bank Mandiri</option>
-                <option value="BRI">BRI</option>
-                <option value="BNI">BNI</option>
-                <option value="BSI">BSI</option>
-                <option value="CIMB Niaga">CIMB Niaga</option>
-                <option value="Bank Jago">Bank Jago</option>
-                <option value="Seabank">SeaBank</option>
+              <select id="editBank" required style="cursor: not-allowed; background: var(--bg-hover);">
+                <option value="BRI" selected>BRI (Bank Rakyat Indonesia)</option>
               </select>
+              <small class="hint">Bank payroll mitra resmi perusahaan (khusus BRI).</small>
             </div>
 
             <div class="form-group">
@@ -509,7 +497,8 @@
 
             <div class="form-group full-width">
               <label>Tanggal Gajian</label>
-              <input type="number" id="editPayday" min="1" max="31" required>
+              <input type="number" id="editPayday" value="28" readonly style="opacity: 0.8; background: var(--bg-hover); cursor: not-allowed;">
+              <small class="hint">Otomatis tanggal 28 setiap bulan (fix).</small>
             </div>
           </div>
         </div>
