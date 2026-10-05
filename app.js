@@ -590,6 +590,30 @@ async function markWithdrawalSuccess(id) {
   }
 }
 
+async function clearAllWithdrawals() {
+  if (!confirm('Apakah Anda yakin ingin MENGHAPUS SEMUA data riwayat penarikan EWA di seluruh akun karyawan agar data kembali fresh (bersih/nol)?')) {
+    return;
+  }
+  try {
+    const { error } = await supabaseClient.rpc('admin_clear_all_withdrawals');
+    if (error) {
+      // Direct delete fallback
+      const { error: delErr } = await supabaseClient
+        .from('ewa_withdrawals')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000');
+      if (delErr) throw delErr;
+    }
+    showToast('Semua data penarikan berhasil dibersihkan! Saldo & limit karyawan kembali utuh.', 'success');
+    allWithdrawals = [];
+    loadWithdrawals();
+    loadDashboardStats();
+    loadPayrollRecap();
+  } catch (err) {
+    showToast('Gagal membersihkan data: ' + err.message, 'error');
+  }
+}
+
 // -------------------------------------------------------------------
 // 7. Payroll Deduction (Pemotongan Gaji Akhir Bulan)
 // -------------------------------------------------------------------
