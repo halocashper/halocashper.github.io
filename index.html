@@ -314,7 +314,7 @@
             </div>
 
             <!-- Payroll Summary Metric Cards -->
-            <div class="stats-grid" style="margin-bottom: 20px;">
+            <div class="stats-grid" style="margin-bottom: 20px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
               <div class="stat-card">
                 <div class="stat-icon-wrapper purple">
                   <span class="material-symbols-rounded">payments</span>
@@ -322,16 +322,6 @@
                 <div class="stat-data">
                   <span class="stat-caption">Total Potongan EWA Bulan Ini</span>
                   <span class="stat-number" id="payrollTotalDeduction">Rp 0</span>
-                </div>
-              </div>
-
-              <div class="stat-card">
-                <div class="stat-icon-wrapper mint">
-                  <span class="material-symbols-rounded">account_balance_wallet</span>
-                </div>
-                <div class="stat-data">
-                  <span class="stat-caption">Total Net Payroll Ditransfer</span>
-                  <span class="stat-number" id="payrollTotalNetPay">Rp 0</span>
                 </div>
               </div>
 
@@ -389,7 +379,7 @@
           <div class="form-grid">
             <div class="form-group full-width">
               <label>Nama Lengkap Karyawan <span class="required">*</span></label>
-              <input type="text" id="addFullName" placeholder="Contoh: Budi Santoso" required>
+              <input type="text" id="addFullName" required>
             </div>
 
             <div class="form-group">
@@ -421,9 +411,9 @@
             <div class="form-group">
               <label>Bank Pencairan <span class="required">*</span></label>
               <select id="addBank" required>
+                <option value="BRI" selected>BRI (Bank Rakyat Indonesia)</option>
                 <option value="BCA">BCA (Bank Central Asia)</option>
                 <option value="Mandiri">Bank Mandiri</option>
-                <option value="BRI">BRI</option>
                 <option value="BNI">BNI</option>
                 <option value="BSI">BSI</option>
                 <option value="CIMB Niaga">CIMB Niaga</option>
@@ -439,7 +429,8 @@
 
             <div class="form-group">
               <label>Tanggal Gajian</label>
-              <input type="number" id="addPayday" value="28" min="1" max="31" required>
+              <input type="number" id="addPayday" value="28" readonly style="opacity: 0.8; background: var(--bg-hover); cursor: not-allowed;">
+              <small class="hint">Otomatis tanggal 28 setiap bulan (fix).</small>
             </div>
           </div>
         </div>
