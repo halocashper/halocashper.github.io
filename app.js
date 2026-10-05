@@ -251,18 +251,54 @@ async function handleCreateEmployee(e) {
   btnText.textContent = 'Mendaftarkan...';
 
   try {
-    const { data, error } = await supabaseClient.rpc('admin_register_employee', {
-      p_email: email,
-      p_password: password,
-      p_full_name: fullName,
-      p_company: company,
-      p_role_id: roleId,
-      p_bank_name: bankName,
-      p_bank_account_number: accountNumber,
-      p_payday_day: payday
-    });
+    let newUserId = null;
 
-    if (error) throw error;
+    // 1. First attempt: Native GoTrue Auth signUp
+    try {
+      const { data: authData, error: authErr } = await supabaseClient.auth.signUp({
+        email: email,
+        password: password,
+        options: {
+          data: {
+            full_name: fullName,
+            company: company
+          }
+        }
+      });
+      if (!authErr && authData && authData.user) {
+        newUserId = authData.user.id;
+      }
+    } catch (authException) {
+      console.warn('Native signup exception, falling back:', authException);
+    }
+
+    // 2. Link employee profile to database
+    if (newUserId) {
+      const { error: linkErr } = await supabaseClient.rpc('admin_link_employee_profile', {
+        p_user_id: newUserId,
+        p_email: email,
+        p_full_name: fullName,
+        p_company: company,
+        p_role_id: roleId,
+        p_bank_name: bankName,
+        p_bank_account_number: accountNumber,
+        p_payday_day: payday
+      });
+      if (linkErr) throw linkErr;
+    } else {
+      // Fallback: Use direct RPC admin_register_employee
+      const { error: rpcErr } = await supabaseClient.rpc('admin_register_employee', {
+        p_email: email,
+        p_password: password,
+        p_full_name: fullName,
+        p_company: company,
+        p_role_id: roleId,
+        p_bank_name: bankName,
+        p_bank_account_number: accountNumber,
+        p_payday_day: payday
+      });
+      if (rpcErr) throw rpcErr;
+    }
 
     showToast(`Karyawan ${fullName} berhasil didaftarkan!`, 'success');
     closeModal('addEmployeeModal');
