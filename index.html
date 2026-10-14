@@ -565,47 +565,48 @@
               <input type="text" id="videoJudul" placeholder="Contoh: Cara Mengatur Gaji Bulanan" required>
             </div>
             <div class="form-group full-width">
-              <label>Deskripsi <span class="required">*</span></label>
-              <textarea id="videoDeskripsi" rows="3" placeholder="Deskripsi singkat isi video..." required style="width:100%; background:var(--bg-input); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:10px 12px; color:var(--text-main); font-family:var(--font-body); font-size:0.88rem; resize:vertical;"></textarea>
+              <label>Deskripsi Video</label>
+              <textarea id="videoDeskripsi" rows="3" placeholder="Deskripsi singkat isi video..." style="width:100%; background:var(--bg-input); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:10px 12px; color:var(--text-main); font-family:var(--font-body); font-size:0.88rem; resize:vertical;"></textarea>
             </div>
-            <div class="form-group">
-              <label>Kategori <span class="required">*</span></label>
-              <select id="videoKategori" required>
-                <option value="Budgeting">Budgeting</option>
-                <option value="Tabungan">Tabungan</option>
-                <option value="EWA">EWA</option>
-                <option value="Investasi">Investasi</option>
-                <option value="Hutang">Hutang</option>
-                <option value="Umum">Umum</option>
-              </select>
+
+            <!-- Upload File Video MP4 -->
+            <div class="form-group full-width">
+              <label>File Video MP4 <span class="required">*</span></label>
+              <input type="file" id="videoFile" accept="video/mp4,video/*" required
+                style="background:var(--bg-input); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:10px 12px; color:var(--text-main); width:100%; cursor:pointer;"
+                onchange="handleVideoFileSelected(this)">
+              <small class="hint">Format MP4. Durasi & snapshot cover awal video akan dideteksi secara otomatis.</small>
             </div>
-            <div class="form-group">
-              <label>Durasi Video</label>
-              <input type="text" id="videoDurasi" placeholder="05:30" pattern="[0-9]{2}:[0-9]{2}">
-              <small class="hint">Format mm:ss (opsional)</small>
+
+            <!-- Preview Durasi & Frame Awal Video Otomatis -->
+            <div class="form-group full-width" id="videoAutoMetaWrap" style="display:none;">
+              <div style="background:rgba(106, 27, 154, 0.08); border:1px solid rgba(106, 27, 154, 0.25); border-radius:var(--radius-md); padding:12px; display:flex; gap:14px; align-items:center;">
+                <img id="videoThumbnailPreview" src="" alt="Thumbnail Preview" style="width:120px; aspect-ratio:16/9; object-fit:cover; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:#000;">
+                <div>
+                  <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Cover Awal Terdeteksi</div>
+                  <div style="font-size:0.95rem; font-weight:700; color:var(--primary); margin-top:2px;">
+                    ⏱ Durasi: <span id="videoDurationText">00:00</span>
+                  </div>
+                  <div style="font-size:0.75rem; color:var(--text-muted); margin-top:3px;">Frame detik ke-1 otomatis diambil sebagai thumbnail</div>
+                </div>
+              </div>
             </div>
+
+            <!-- Custom Thumbnail (Opsional) -->
+            <div class="form-group full-width">
+              <label>Ganti Thumbnail Foto Custom (Opsional)</label>
+              <input type="file" id="customThumbnailFile" accept="image/jpeg,image/png,image/webp"
+                style="background:var(--bg-input); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:8px 12px; color:var(--text-main); width:100%; cursor:pointer;"
+                onchange="handleCustomThumbnailSelected(this)">
+              <small class="hint">Kosongkan jika ingin memakai snapshot frame awal video di atas.</small>
+            </div>
+
             <div class="form-group">
               <label>Urutan Tampil</label>
               <input type="number" id="videoUrutan" value="0" min="0">
               <small class="hint">0 = paling atas</small>
             </div>
-            <div class="form-group">
-              <label>Warna Badge</label>
-              <select id="videoWarna">
-                <option value="#6A1B9A">Ungu (Default)</option>
-                <option value="#2ECC9A">Hijau Mint</option>
-                <option value="#FF6FB5">Pink</option>
-                <option value="#FF9800">Oranye</option>
-                <option value="#E53935">Merah</option>
-                <option value="#3b82f6">Biru</option>
-              </select>
-            </div>
-            <div class="form-group full-width">
-              <label>File Video MP4 <span class="required">*</span></label>
-              <input type="file" id="videoFile" accept="video/mp4,video/*" required
-                style="background:var(--bg-input); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:10px 12px; color:var(--text-main); width:100%; cursor:pointer;">
-              <small class="hint">Format MP4. Disarankan resolusi 720p, ukuran &lt; 100MB untuk loading optimal.</small>
-            </div>
+
             <!-- Upload progress -->
             <div class="form-group full-width" id="uploadProgressWrap" style="display:none;">
               <label>Progress Upload</label>
@@ -617,15 +618,11 @@
           </div>
         </div>
         <div class="modal-footer">
-          <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; color:var(--text-muted); cursor:pointer;">
-            <input type="checkbox" id="videoPublish" style="accent-color:var(--primary);">
-            Langsung Publish (Tampilkan ke Pengguna)
-          </label>
-          <div style="display:flex; gap:10px;">
+          <div style="display:flex; justify-content:flex-end; width:100%; gap:10px;">
             <button type="button" class="btn btn-secondary" onclick="closeModal('addVideoModal')">Batal</button>
             <button type="submit" class="btn btn-primary" id="btnSubmitVideo">
               <span class="btn-spinner" id="spinnerVideo"></span>
-              <span id="textSubmitVideo">Upload & Simpan</span>
+              <span id="textSubmitVideo">Upload & Publikasikan</span>
             </button>
           </div>
         </div>
@@ -657,41 +654,16 @@
               <label>Deskripsi</label>
               <textarea id="editVideoDeskripsi" rows="3" style="width:100%; background:var(--bg-input); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:10px 12px; color:var(--text-main); font-family:var(--font-body); font-size:0.88rem; resize:vertical;"></textarea>
             </div>
-            <div class="form-group">
-              <label>Kategori</label>
-              <select id="editVideoKategori">
-                <option value="Budgeting">Budgeting</option>
-                <option value="Tabungan">Tabungan</option>
-                <option value="EWA">EWA</option>
-                <option value="Investasi">Investasi</option>
-                <option value="Hutang">Hutang</option>
-                <option value="Umum">Umum</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Durasi</label>
-              <input type="text" id="editVideoDurasi" placeholder="05:30">
-            </div>
-            <div class="form-group">
-              <label>Urutan Tampil</label>
-              <input type="number" id="editVideoUrutan" value="0" min="0">
-            </div>
-            <div class="form-group">
-              <label>Warna Badge</label>
-              <select id="editVideoWarna">
-                <option value="#6A1B9A">Ungu</option>
-                <option value="#2ECC9A">Hijau Mint</option>
-                <option value="#FF6FB5">Pink</option>
-                <option value="#FF9800">Oranye</option>
-                <option value="#E53935">Merah</option>
-                <option value="#3b82f6">Biru</option>
-              </select>
+            <div class="form-group full-width">
+              <label>Ubah Foto Thumbnail (Opsional)</label>
+              <input type="file" id="editCustomThumbnail" accept="image/*"
+                style="background:var(--bg-input); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:8px 12px; color:var(--text-main); width:100%; cursor:pointer;">
+              <small class="hint">Biarkan kosong jika tidak ingin mengubah cover video saat ini.</small>
             </div>
             <div class="form-group full-width">
-              <label style="display:flex; align-items:center; gap:8px;">
-                <input type="checkbox" id="editVideoPublish" style="accent-color:var(--primary);">
-                Published (Tampilkan ke Pengguna)
-              </label>
+              <label>Urutan Tampil</label>
+              <input type="number" id="editVideoUrutan" value="0" min="0">
+              <small class="hint">0 = posisi paling atas di list.</small>
             </div>
           </div>
         </div>

@@ -822,13 +822,93 @@ async function loadEdukasiVideos() {
   }
 }
 
+let detectedVideoDuration = '00:00';
+let detectedThumbnailBlob = null;
+let customThumbnailBlob = null;
+
+function formatDuration(seconds) {
+  if (!seconds || isNaN(seconds)) return '00:00';
+  const total = Math.floor(seconds);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  if (m >= 60) {
+    const h = Math.floor(m / 60);
+    const remM = m % 60;
+    return `${h.toString().padStart(2, '0')}:${remM.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
+// Deteksi durasi dan snapshot frame awal video secara otomatis
+function handleVideoFileSelected(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+
+  detectedVideoDuration = '00:00';
+  detectedThumbnailBlob = null;
+  customThumbnailBlob = null;
+
+  const url = URL.createObjectURL(file);
+  const tempVideo = document.createElement('video');
+  tempVideo.preload = 'metadata';
+  tempVideo.src = url;
+  tempVideo.muted = true;
+  tempVideo.playsInline = true;
+
+  tempVideo.onloadedmetadata = () => {
+    detectedVideoDuration = formatDuration(tempVideo.duration);
+    const durationTextEl = document.getElementById('videoDurationText');
+    if (durationTextEl) durationTextEl.textContent = detectedVideoDuration;
+
+    // Lompat ke detik ke-1 (atau setengah durasi jika video sangat pendek) untuk ambil snapshot
+    tempVideo.currentTime = Math.min(1.0, (tempVideo.duration || 2) / 2);
+  };
+
+  tempVideo.onseeked = () => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = tempVideo.videoWidth || 640;
+      canvas.height = tempVideo.videoHeight || 360;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(tempVideo, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob((blob) => {
+        detectedThumbnailBlob = blob;
+        const previewImg = document.getElementById('videoThumbnailPreview');
+        const metaWrap = document.getElementById('videoAutoMetaWrap');
+        if (previewImg && blob) {
+          previewImg.src = URL.createObjectURL(blob);
+        }
+        if (metaWrap) metaWrap.style.display = 'block';
+      }, 'image/jpeg', 0.88);
+    } catch (e) {
+      console.warn('Gagal ekstrak frame video:', e);
+    }
+  };
+}
+
+function handleCustomThumbnailSelected(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  customThumbnailBlob = file;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const previewImg = document.getElementById('videoThumbnailPreview');
+    const metaWrap = document.getElementById('videoAutoMetaWrap');
+    if (previewImg) previewImg.src = e.target.result;
+    if (metaWrap) metaWrap.style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+}
+
 function renderEdukasiGrid(list) {
   const grid = document.getElementById('edukasiVideoGrid');
   if (!grid) return;
 
   if (!list || list.length === 0) {
     grid.innerHTML = `
-      <div style="padding:60px 20px; text-align:center; color:var(--text-muted);">
+      <div style="padding:60px 20px; text-align:center; color:var(--text-muted); grid-column: 1 / -1;">
         <span class="material-symbols-rounded" style="font-size:48px; display:block; margin-bottom:12px; opacity:0.4;">video_library</span>
         <div style="font-size:1rem; font-weight:600; margin-bottom:6px;">Belum Ada Video</div>
         <div style="font-size:0.85rem;">Klik tombol "+ Upload Video" untuk menambahkan video edukasi pertama.</div>
@@ -837,43 +917,44 @@ function renderEdukasiGrid(list) {
   }
 
   grid.innerHTML = list.map(v => {
-    const publishBadge = v.is_published
-      ? `<span style="background:var(--success-subtle);color:var(--success);padding:2px 8px;border-radius:var(--radius-pill);font-size:0.72rem;font-weight:600;">● Published</span>`
-      : `<span style="background:var(--warning-subtle);color:var(--warning);padding:2px 8px;border-radius:var(--radius-pill);font-size:0.72rem;font-weight:600;">◌ Draft</span>`;
-
     const previewBtn = v.video_url
-      ? `<a href="${escapeHtml(v.video_url)}" target="_blank" class="btn btn-secondary btn-sm" title="Preview Video">
+      ? `<a href="${escapeHtml(v.video_url)}" target="_blank" class="btn btn-secondary btn-sm" title="Tonton Video">
            <span class="material-symbols-rounded" style="font-size:15px;">play_circle</span>
-           <span>Preview</span>
+           <span>Tonton</span>
          </a>`
       : `<button class="btn btn-secondary btn-sm" disabled style="opacity:0.4;cursor:not-allowed;">
            <span class="material-symbols-rounded" style="font-size:15px;">videocam_off</span>
            <span>No URL</span>
          </button>`;
 
+    const thumbHtml = v.thumbnail_url
+      ? `<img src="${escapeHtml(v.thumbnail_url)}" alt="${escapeHtml(v.judul)}" class="video-card-thumb-img" loading="lazy">`
+      : `<div class="video-card-thumb-fallback">
+           <span class="material-symbols-rounded" style="font-size:42px;color:rgba(255,255,255,0.85);">play_circle</span>
+         </div>`;
+
     return `
       <div class="video-card">
-        <div class="video-card-thumb" style="background: linear-gradient(135deg, ${escapeHtml(v.warna_badge || '#6A1B9A')}, ${escapeHtml(v.warna_badge || '#6A1B9A')}88);">
-          <span class="material-symbols-rounded" style="font-size:36px;color:white;opacity:0.9;">play_circle</span>
-          <div class="video-card-durasi">${escapeHtml(v.durasi || '--:--')}</div>
+        <div class="video-card-thumb">
+          ${thumbHtml}
+          <div class="video-card-durasi">${escapeHtml(v.durasi || '00:00')}</div>
         </div>
         <div class="video-card-body">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px;">
-            <span style="background:${escapeHtml(v.warna_badge || '#6A1B9A')}22;color:${escapeHtml(v.warna_badge || '#6A1B9A')};padding:2px 8px;border-radius:var(--radius-pill);font-size:0.72rem;font-weight:600;">${escapeHtml(v.kategori || 'Umum')}</span>
-            ${publishBadge}
+          <div class="video-card-meta-row">
+            <div class="video-channel-avatar">C</div>
+            <div style="flex:1; min-width:0;">
+              <div class="video-card-title">${escapeHtml(v.judul)}</div>
+              <div class="video-card-subinfo">Cashper Edukasi</div>
+            </div>
           </div>
-          <div class="video-card-title">${escapeHtml(v.judul)}</div>
-          <div class="video-card-desc">${escapeHtml(v.deskripsi || '')}</div>
-          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+          ${v.deskripsi ? `<div class="video-card-desc">${escapeHtml(v.deskripsi)}</div>` : ''}
+          <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
             ${previewBtn}
             <button class="btn btn-secondary btn-sm" onclick="openEditVideoModal('${v.id}')">
               <span class="material-symbols-rounded" style="font-size:15px;">edit</span>
               <span>Edit</span>
             </button>
-            <button class="btn btn-secondary btn-sm" onclick="toggleVideoPublish('${v.id}', ${v.is_published})" title="${v.is_published ? 'Sembunyikan dari user' : 'Publish ke user'}">
-              <span class="material-symbols-rounded" style="font-size:15px;">${v.is_published ? 'visibility_off' : 'visibility'}</span>
-            </button>
-            <button class="btn btn-danger btn-sm" onclick="deleteEdukasiVideo('${v.id}', '${escapeHtml(v.storage_path || '')}')" title="Hapus Video">
+            <button class="btn btn-danger btn-sm" onclick="deleteEdukasiVideo('${v.id}', '${escapeHtml(v.storage_path || '')}', '${escapeHtml(v.thumbnail_url || '')}')" title="Hapus Video">
               <span class="material-symbols-rounded" style="font-size:15px;">delete</span>
             </button>
           </div>
@@ -885,6 +966,11 @@ function renderEdukasiGrid(list) {
 
 function openAddVideoModal() {
   document.getElementById('addVideoForm').reset();
+  detectedVideoDuration = '00:00';
+  detectedThumbnailBlob = null;
+  customThumbnailBlob = null;
+  const metaWrap = document.getElementById('videoAutoMetaWrap');
+  if (metaWrap) metaWrap.style.display = 'none';
   document.getElementById('uploadProgressWrap').style.display = 'none';
   document.getElementById('uploadProgressBar').style.width = '0%';
   document.getElementById('addVideoModal').classList.add('show');
@@ -897,11 +983,7 @@ async function handleUploadVideo(e) {
 
   const judul = document.getElementById('videoJudul').value.trim();
   const deskripsi = document.getElementById('videoDeskripsi').value.trim();
-  const kategori = document.getElementById('videoKategori').value;
-  const durasi = document.getElementById('videoDurasi').value.trim() || '00:00';
   const urutan = parseInt(document.getElementById('videoUrutan').value || '0', 10);
-  const warnaBadge = document.getElementById('videoWarna').value;
-  const isPublished = document.getElementById('videoPublish').checked;
   const fileInput = document.getElementById('videoFile');
   const file = fileInput.files[0];
 
@@ -911,27 +993,25 @@ async function handleUploadVideo(e) {
   btn.disabled = true;
   btnText.textContent = 'Mengunggah...';
 
-  // Show progress bar
   document.getElementById('uploadProgressWrap').style.display = 'block';
   const progressBar = document.getElementById('uploadProgressBar');
   const progressLabel = document.getElementById('uploadProgressLabel');
 
   try {
-    // 1. Upload file ke Supabase Storage
-    const ext = file.name.split('.').pop();
     const timestamp = Date.now();
     const safeName = judul.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 40);
-    const storagePath = `${safeName}_${timestamp}.${ext}`;
+    const videoExt = file.name.split('.').pop() || 'mp4';
+    const storagePath = `videos/${safeName}_${timestamp}.${videoExt}`;
 
-    // Simulasi progress (Supabase JS v2 tidak support progress callback natively)
-    let fakeProgress = 0;
+    let fakeProgress = 10;
     const progressInterval = setInterval(() => {
-      fakeProgress = Math.min(fakeProgress + Math.random() * 15, 85);
+      fakeProgress = Math.min(fakeProgress + Math.random() * 12, 80);
       progressBar.style.width = fakeProgress + '%';
-      progressLabel.textContent = `Mengunggah... ${Math.round(fakeProgress)}%`;
+      progressLabel.textContent = `Mengunggah video MP4... ${Math.round(fakeProgress)}%`;
     }, 400);
 
-    const { data: storageData, error: storageError } = await supabaseClient.storage
+    // 1. Upload Video MP4 ke Supabase Storage
+    const { error: storageError } = await supabaseClient.storage
       .from(STORAGE_BUCKET)
       .upload(storagePath, file, {
         contentType: file.type || 'video/mp4',
@@ -939,32 +1019,56 @@ async function handleUploadVideo(e) {
       });
 
     clearInterval(progressInterval);
+    if (storageError) throw new Error('Upload video gagal: ' + storageError.message);
 
-    if (storageError) throw new Error('Upload gagal: ' + storageError.message);
+    progressBar.style.width = '85%';
+    progressLabel.textContent = 'Menyiapkan thumbnail...';
 
-    progressBar.style.width = '95%';
-    progressLabel.textContent = 'Menyimpan metadata...';
-
-    // 2. Get public URL
+    // 2. Dapatkan public URL video
     const { data: urlData } = supabaseClient.storage
       .from(STORAGE_BUCKET)
       .getPublicUrl(storagePath);
-
     const videoUrl = urlData?.publicUrl || null;
 
-    // 3. Insert metadata ke tabel
+    // 3. Upload Thumbnail (Custom foto atau auto frame snapshot)
+    let thumbnailUrl = null;
+    const thumbBlobToUpload = customThumbnailBlob || detectedThumbnailBlob;
+    if (thumbBlobToUpload) {
+      const thumbPath = `thumbnails/${safeName}_${timestamp}.jpg`;
+      const { error: thumbErr } = await supabaseClient.storage
+        .from(STORAGE_BUCKET)
+        .upload(thumbPath, thumbBlobToUpload, {
+          contentType: 'image/jpeg',
+          upsert: true
+        });
+
+      if (!thumbErr) {
+        const { data: thumbUrlData } = supabaseClient.storage
+          .from(STORAGE_BUCKET)
+          .getPublicUrl(thumbPath);
+        thumbnailUrl = thumbUrlData?.publicUrl || null;
+      } else {
+        console.warn('Gagal upload thumbnail:', thumbErr.message);
+      }
+    }
+
+    progressBar.style.width = '95%';
+    progressLabel.textContent = 'Mempublikasikan ke pengguna...';
+
+    // 4. Simpan ke tabel edukasi_videos (Auto-published!)
     const { error: insertError } = await supabaseClient
       .from('edukasi_videos')
       .insert({
         judul,
         deskripsi,
-        kategori,
-        durasi,
+        kategori: 'Edukasi',
+        warna_badge: '#6A1B9A',
+        durasi: detectedVideoDuration || '00:00',
         urutan,
-        warna_badge: warnaBadge,
         storage_path: storagePath,
         video_url: videoUrl,
-        is_published: isPublished
+        thumbnail_url: thumbnailUrl,
+        is_published: true // Selalu auto-publish ke pengguna!
       });
 
     if (insertError) throw insertError;
@@ -972,7 +1076,7 @@ async function handleUploadVideo(e) {
     progressBar.style.width = '100%';
     progressLabel.textContent = 'Selesai!';
 
-    showToast(`Video "${judul}" berhasil diupload!`, 'success');
+    showToast(`Video "${judul}" berhasil diupload dan dipublikasikan!`, 'success');
     closeModal('addVideoModal');
     loadEdukasiVideos();
 
@@ -983,7 +1087,7 @@ async function handleUploadVideo(e) {
   } finally {
     btn.classList.remove('loading');
     btn.disabled = false;
-    btnText.textContent = 'Upload & Simpan';
+    btnText.textContent = 'Upload & Publikasikan';
   }
 }
 
@@ -994,11 +1098,8 @@ function openEditVideoModal(videoId) {
   document.getElementById('editVideoId').value = v.id;
   document.getElementById('editVideoJudul').value = v.judul || '';
   document.getElementById('editVideoDeskripsi').value = v.deskripsi || '';
-  document.getElementById('editVideoKategori').value = v.kategori || 'Umum';
-  document.getElementById('editVideoDurasi').value = v.durasi || '';
   document.getElementById('editVideoUrutan').value = v.urutan ?? 0;
-  document.getElementById('editVideoWarna').value = v.warna_badge || '#6A1B9A';
-  document.getElementById('editVideoPublish').checked = v.is_published || false;
+  document.getElementById('editCustomThumbnail').value = '';
 
   document.getElementById('editVideoModal').classList.add('show');
 }
@@ -1011,20 +1112,40 @@ async function handleUpdateVideo(e) {
   const id = document.getElementById('editVideoId').value;
   const judul = document.getElementById('editVideoJudul').value.trim();
   const deskripsi = document.getElementById('editVideoDeskripsi').value.trim();
-  const kategori = document.getElementById('editVideoKategori').value;
-  const durasi = document.getElementById('editVideoDurasi').value.trim();
   const urutan = parseInt(document.getElementById('editVideoUrutan').value || '0', 10);
-  const warnaBadge = document.getElementById('editVideoWarna').value;
-  const isPublished = document.getElementById('editVideoPublish').checked;
+  const thumbInput = document.getElementById('editCustomThumbnail');
+  const customThumbFile = thumbInput.files && thumbInput.files[0];
 
   btn.classList.add('loading');
   btn.disabled = true;
   btnText.textContent = 'Menyimpan...';
 
   try {
+    const updateData = { judul, deskripsi, urutan };
+
+    // Jika admin upload thumbnail baru saat edit
+    if (customThumbFile) {
+      const timestamp = Date.now();
+      const safeName = judul.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 40);
+      const thumbPath = `thumbnails/${safeName}_${timestamp}.jpg`;
+      const { error: thumbErr } = await supabaseClient.storage
+        .from(STORAGE_BUCKET)
+        .upload(thumbPath, customThumbFile, {
+          contentType: customThumbFile.type || 'image/jpeg',
+          upsert: true
+        });
+
+      if (!thumbErr) {
+        const { data: thumbUrlData } = supabaseClient.storage
+          .from(STORAGE_BUCKET)
+          .getPublicUrl(thumbPath);
+        updateData.thumbnail_url = thumbUrlData?.publicUrl || null;
+      }
+    }
+
     const { error } = await supabaseClient
       .from('edukasi_videos')
-      .update({ judul, deskripsi, kategori, durasi, urutan, warna_badge: warnaBadge, is_published: isPublished })
+      .update(updateData)
       .eq('id', id);
 
     if (error) throw error;
@@ -1040,32 +1161,12 @@ async function handleUpdateVideo(e) {
   }
 }
 
-async function toggleVideoPublish(videoId, currentPublished) {
-  const newStatus = !currentPublished;
+async function deleteEdukasiVideo(videoId, storagePath, thumbUrl) {
+  if (!confirm('Hapus video ini secara permanen? File video dan datanya akan dihapus.')) return;
   try {
-    const { error } = await supabaseClient
-      .from('edukasi_videos')
-      .update({ is_published: newStatus })
-      .eq('id', videoId);
-    if (error) throw error;
-    showToast(newStatus ? 'Video dipublish ke pengguna!' : 'Video disembunyikan dari pengguna.', 'success');
-    loadEdukasiVideos();
-  } catch (err) {
-    showToast('Gagal: ' + err.message, 'error');
-  }
-}
-
-async function deleteEdukasiVideo(videoId, storagePath) {
-  if (!confirm('Hapus video ini secara permanen? File di storage dan datanya akan dihapus.')) return;
-  try {
-    // Hapus file dari storage
     if (storagePath) {
-      const { error: storageErr } = await supabaseClient.storage
-        .from(STORAGE_BUCKET)
-        .remove([storagePath]);
-      if (storageErr) console.warn('Storage delete warn:', storageErr.message);
+      await supabaseClient.storage.from(STORAGE_BUCKET).remove([storagePath]);
     }
-    // Hapus record dari tabel
     const { error } = await supabaseClient
       .from('edukasi_videos')
       .delete()
