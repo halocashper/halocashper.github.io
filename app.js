@@ -823,8 +823,9 @@ async function loadEdukasiVideos() {
 }
 
 let detectedVideoDuration = '00:00';
-let detectedThumbnailBlob = null;
-let customThumbnailBlob = null;
+let detectedThumbnailBase64 = null;
+let customThumbnailBase64 = null;
+let editThumbnailBase64 = null;
 
 function formatDuration(seconds) {
   if (!seconds || isNaN(seconds)) return '00:00';
@@ -839,67 +840,124 @@ function formatDuration(seconds) {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
-// Deteksi durasi dan snapshot frame awal video secara otomatis
+// Convert dataURL to Blob untuk upload Supabase Storage
+function base64ToBlob(base64) {
+  if (!base64 || !base64.includes(';base64,')) return null;
+  const parts = base64.split(';base64,');
+  const contentType = parts[0].split(':')[1];
+  const raw = window.atob(parts[1]);
+  const rawLength = raw.length;
+  const uInt8Array = new Uint8Array(rawLength);
+  for (let i = 0; i < rawLength; ++i) {
+    uInt8Array[i] = raw.charCodeAt(i);
+  }
+  return new Blob([uInt8Array], { type: contentType });
+}
+
+// Resize image file ke 16:9 480x270 JPEG Base64
+function fileToBase64Thumbnail(file, callback) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 480;
+      canvas.height = 270;
+      const ctx = canvas.getContext('2d');
+      const scale = Math.max(canvas.width / img.width, canvas.height / img.height);
+      const x = (canvas.width - img.width * scale) / 2;
+      const y = (canvas.height - img.height * scale) / 2;
+      ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+      callback(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// Tangkap frame awal video MP4 secara presisi & dapatkan durasi
 function handleVideoFileSelected(input) {
   const file = input.files && input.files[0];
   if (!file) return;
 
   detectedVideoDuration = '00:00';
-  detectedThumbnailBlob = null;
-  customThumbnailBlob = null;
+  detectedThumbnailBase64 = null;
+  customThumbnailBase64 = null;
+
+  const previewImg = document.getElementById('videoThumbnailPreview');
+  const metaWrap = document.getElementById('videoAutoMetaWrap');
+  const durationTextEl = document.getElementById('videoDurationText');
+
+  if (metaWrap) metaWrap.style.display = 'block';
+  if (durationTextEl) durationTextEl.textContent = 'Mendeteksi...';
 
   const url = URL.createObjectURL(file);
   const tempVideo = document.createElement('video');
-  tempVideo.preload = 'metadata';
-  tempVideo.src = url;
+  tempVideo.style.position = 'fixed';
+  tempVideo.style.bottom = '-9999px';
+  tempVideo.style.left = '-9999px';
+  tempVideo.style.width = '320px';
+  tempVideo.style.height = '180px';
+  tempVideo.style.opacity = '0';
   tempVideo.muted = true;
   tempVideo.playsInline = true;
+  tempVideo.preload = 'auto';
+  tempVideo.src = url;
+  document.body.appendChild(tempVideo);
+
+  let captured = false;
+  const doCapture = () => {
+    if (captured) return;
+    captured = true;
+    try {
+      detectedVideoDuration = formatDuration(tempVideo.duration);
+      if (durationTextEl) durationTextEl.textContent = detectedVideoDuration;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 480;
+      canvas.height = 270;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(tempVideo, 0, 0, canvas.width, canvas.height);
+
+      const base64 = canvas.toDataURL('image/jpeg', 0.85);
+      detectedThumbnailBase64 = base64;
+      if (previewImg) previewImg.src = base64;
+    } catch (e) {
+      console.warn('Gagal capture canvas video:', e);
+    } finally {
+      URL.revokeObjectURL(url);
+      tempVideo.remove();
+    }
+  };
 
   tempVideo.onloadedmetadata = () => {
     detectedVideoDuration = formatDuration(tempVideo.duration);
-    const durationTextEl = document.getElementById('videoDurationText');
     if (durationTextEl) durationTextEl.textContent = detectedVideoDuration;
-
-    // Lompat ke detik ke-1 (atau setengah durasi jika video sangat pendek) untuk ambil snapshot
     tempVideo.currentTime = Math.min(1.0, (tempVideo.duration || 2) / 2);
   };
 
   tempVideo.onseeked = () => {
-    try {
-      const canvas = document.createElement('canvas');
-      canvas.width = tempVideo.videoWidth || 640;
-      canvas.height = tempVideo.videoHeight || 360;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(tempVideo, 0, 0, canvas.width, canvas.height);
-
-      canvas.toBlob((blob) => {
-        detectedThumbnailBlob = blob;
-        const previewImg = document.getElementById('videoThumbnailPreview');
-        const metaWrap = document.getElementById('videoAutoMetaWrap');
-        if (previewImg && blob) {
-          previewImg.src = URL.createObjectURL(blob);
-        }
-        if (metaWrap) metaWrap.style.display = 'block';
-      }, 'image/jpeg', 0.88);
-    } catch (e) {
-      console.warn('Gagal ekstrak frame video:', e);
-    }
+    setTimeout(doCapture, 150);
   };
+
+  // Timeout fallback
+  setTimeout(() => {
+    if (!captured) doCapture();
+  }, 4000);
 }
 
+// Handle jika admin memilih custom thumbnail foto
 function handleCustomThumbnailSelected(input) {
   const file = input.files && input.files[0];
   if (!file) return;
-  customThumbnailBlob = file;
 
-  const reader = new FileReader();
-  reader.onload = (e) => {
+  fileToBase64Thumbnail(file, (base64) => {
+    customThumbnailBase64 = base64;
     const previewImg = document.getElementById('videoThumbnailPreview');
     const metaWrap = document.getElementById('videoAutoMetaWrap');
-    if (previewImg) previewImg.src = e.target.result;
+    if (previewImg) previewImg.src = base64;
     if (metaWrap) metaWrap.style.display = 'block';
-  };
-  reader.readAsDataURL(file);
+  });
 }
 
 function renderEdukasiGrid(list) {
@@ -908,7 +966,7 @@ function renderEdukasiGrid(list) {
 
   if (!list || list.length === 0) {
     grid.innerHTML = `
-      <div style="padding:60px 20px; text-align:center; color:var(--text-muted); grid-column: 1 / -1;">
+      <div style="padding:60px 20px; text-align:center; color:var(--text-muted); width:100%;">
         <span class="material-symbols-rounded" style="font-size:48px; display:block; margin-bottom:12px; opacity:0.4;">video_library</span>
         <div style="font-size:1rem; font-weight:600; margin-bottom:6px;">Belum Ada Video</div>
         <div style="font-size:0.85rem;">Klik tombol "+ Upload Video" untuk menambahkan video edukasi pertama.</div>
@@ -928,27 +986,33 @@ function renderEdukasiGrid(list) {
          </button>`;
 
     const thumbHtml = v.thumbnail_url
-      ? `<img src="${escapeHtml(v.thumbnail_url)}" alt="${escapeHtml(v.judul)}" class="video-card-thumb-img" loading="lazy">`
+      ? `<img src="${v.thumbnail_url}" alt="${escapeHtml(v.judul)}" class="video-card-thumb-img" loading="lazy">`
       : `<div class="video-card-thumb-fallback">
-           <span class="material-symbols-rounded" style="font-size:42px;color:rgba(255,255,255,0.85);">play_circle</span>
+           <span class="material-symbols-rounded" style="font-size:38px;color:rgba(255,255,255,0.85);">play_circle</span>
          </div>`;
 
     return `
       <div class="video-card">
+        <!-- Thumbnail 16:9 di sebelah kiri (YouTube Style) -->
         <div class="video-card-thumb">
           ${thumbHtml}
           <div class="video-card-durasi">${escapeHtml(v.durasi || '00:00')}</div>
         </div>
+
+        <!-- Metadata di sebelah kanan (YouTube Style) -->
         <div class="video-card-body">
-          <div class="video-card-meta-row">
+          <div class="video-card-title">${escapeHtml(v.judul)}</div>
+          
+          <div class="video-card-subinfo">Cashper Edukasi • Keuangan</div>
+
+          <div class="video-channel-row">
             <div class="video-channel-avatar">C</div>
-            <div style="flex:1; min-width:0;">
-              <div class="video-card-title">${escapeHtml(v.judul)}</div>
-              <div class="video-card-subinfo">Cashper Edukasi</div>
-            </div>
+            <span class="video-channel-name">Cashper Official</span>
           </div>
+
           ${v.deskripsi ? `<div class="video-card-desc">${escapeHtml(v.deskripsi)}</div>` : ''}
-          <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+
+          <div style="display:flex;gap:8px;margin-top:auto;padding-top:10px;flex-wrap:wrap;">
             ${previewBtn}
             <button class="btn btn-secondary btn-sm" onclick="openEditVideoModal('${v.id}')">
               <span class="material-symbols-rounded" style="font-size:15px;">edit</span>
@@ -967,8 +1031,8 @@ function renderEdukasiGrid(list) {
 function openAddVideoModal() {
   document.getElementById('addVideoForm').reset();
   detectedVideoDuration = '00:00';
-  detectedThumbnailBlob = null;
-  customThumbnailBlob = null;
+  detectedThumbnailBase64 = null;
+  customThumbnailBase64 = null;
   const metaWrap = document.getElementById('videoAutoMetaWrap');
   if (metaWrap) metaWrap.style.display = 'none';
   document.getElementById('uploadProgressWrap').style.display = 'none';
@@ -1030,25 +1094,33 @@ async function handleUploadVideo(e) {
       .getPublicUrl(storagePath);
     const videoUrl = urlData?.publicUrl || null;
 
-    // 3. Upload Thumbnail (Custom foto atau auto frame snapshot)
-    let thumbnailUrl = null;
-    const thumbBlobToUpload = customThumbnailBlob || detectedThumbnailBlob;
-    if (thumbBlobToUpload) {
-      const thumbPath = `thumbnails/${safeName}_${timestamp}.jpg`;
-      const { error: thumbErr } = await supabaseClient.storage
-        .from(STORAGE_BUCKET)
-        .upload(thumbPath, thumbBlobToUpload, {
-          contentType: 'image/jpeg',
-          upsert: true
-        });
+    // 3. Simpan Thumbnail (Prioritaskan Storage, fallback ke Base64 Data URL)
+    const activeThumbnailBase64 = customThumbnailBase64 || detectedThumbnailBase64;
+    let finalThumbnailUrl = activeThumbnailBase64; // Default fallback langsung base64 jika storage ditolak
 
-      if (!thumbErr) {
-        const { data: thumbUrlData } = supabaseClient.storage
-          .from(STORAGE_BUCKET)
-          .getPublicUrl(thumbPath);
-        thumbnailUrl = thumbUrlData?.publicUrl || null;
-      } else {
-        console.warn('Gagal upload thumbnail:', thumbErr.message);
+    if (activeThumbnailBase64) {
+      try {
+        const thumbBlob = base64ToBlob(activeThumbnailBase64);
+        if (thumbBlob) {
+          const thumbPath = `thumbnails/${safeName}_${timestamp}.jpg`;
+          const { error: thumbErr } = await supabaseClient.storage
+            .from(STORAGE_BUCKET)
+            .upload(thumbPath, thumbBlob, {
+              contentType: 'image/jpeg',
+              upsert: true
+            });
+
+          if (!thumbErr) {
+            const { data: thumbUrlData } = supabaseClient.storage
+              .from(STORAGE_BUCKET)
+              .getPublicUrl(thumbPath);
+            if (thumbUrlData?.publicUrl) {
+              finalThumbnailUrl = thumbUrlData.publicUrl;
+            }
+          }
+        }
+      } catch (tErr) {
+        console.warn('Storage thumbnail warning:', tErr);
       }
     }
 
@@ -1067,8 +1139,8 @@ async function handleUploadVideo(e) {
         urutan,
         storage_path: storagePath,
         video_url: videoUrl,
-        thumbnail_url: thumbnailUrl,
-        is_published: true // Selalu auto-publish ke pengguna!
+        thumbnail_url: finalThumbnailUrl,
+        is_published: true
       });
 
     if (insertError) throw insertError;
@@ -1095,11 +1167,22 @@ function openEditVideoModal(videoId) {
   const v = allEdukasiVideos.find(x => x.id === videoId);
   if (!v) { showToast('Video tidak ditemukan', 'error'); return; }
 
+  editThumbnailBase64 = null;
   document.getElementById('editVideoId').value = v.id;
   document.getElementById('editVideoJudul').value = v.judul || '';
   document.getElementById('editVideoDeskripsi').value = v.deskripsi || '';
   document.getElementById('editVideoUrutan').value = v.urutan ?? 0;
-  document.getElementById('editCustomThumbnail').value = '';
+  
+  const editThumbInput = document.getElementById('editCustomThumbnail');
+  editThumbInput.value = '';
+  editThumbInput.onchange = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) {
+      fileToBase64Thumbnail(file, (base64) => {
+        editThumbnailBase64 = base64;
+      });
+    }
+  };
 
   document.getElementById('editVideoModal').classList.add('show');
 }
@@ -1113,8 +1196,6 @@ async function handleUpdateVideo(e) {
   const judul = document.getElementById('editVideoJudul').value.trim();
   const deskripsi = document.getElementById('editVideoDeskripsi').value.trim();
   const urutan = parseInt(document.getElementById('editVideoUrutan').value || '0', 10);
-  const thumbInput = document.getElementById('editCustomThumbnail');
-  const customThumbFile = thumbInput.files && thumbInput.files[0];
 
   btn.classList.add('loading');
   btn.disabled = true;
@@ -1124,23 +1205,30 @@ async function handleUpdateVideo(e) {
     const updateData = { judul, deskripsi, urutan };
 
     // Jika admin upload thumbnail baru saat edit
-    if (customThumbFile) {
-      const timestamp = Date.now();
-      const safeName = judul.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 40);
-      const thumbPath = `thumbnails/${safeName}_${timestamp}.jpg`;
-      const { error: thumbErr } = await supabaseClient.storage
-        .from(STORAGE_BUCKET)
-        .upload(thumbPath, customThumbFile, {
-          contentType: customThumbFile.type || 'image/jpeg',
-          upsert: true
-        });
-
-      if (!thumbErr) {
-        const { data: thumbUrlData } = supabaseClient.storage
+    if (editThumbnailBase64) {
+      let finalThumb = editThumbnailBase64;
+      try {
+        const thumbBlob = base64ToBlob(editThumbnailBase64);
+        const timestamp = Date.now();
+        const safeName = judul.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 40);
+        const thumbPath = `thumbnails/${safeName}_${timestamp}.jpg`;
+        const { error: thumbErr } = await supabaseClient.storage
           .from(STORAGE_BUCKET)
-          .getPublicUrl(thumbPath);
-        updateData.thumbnail_url = thumbUrlData?.publicUrl || null;
+          .upload(thumbPath, thumbBlob, {
+            contentType: 'image/jpeg',
+            upsert: true
+          });
+
+        if (!thumbErr) {
+          const { data: thumbUrlData } = supabaseClient.storage
+            .from(STORAGE_BUCKET)
+            .getPublicUrl(thumbPath);
+          if (thumbUrlData?.publicUrl) finalThumb = thumbUrlData.publicUrl;
+        }
+      } catch (e) {
+        console.warn('Storage edit warn:', e);
       }
+      updateData.thumbnail_url = finalThumb;
     }
 
     const { error } = await supabaseClient

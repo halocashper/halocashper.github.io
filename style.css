@@ -1120,12 +1120,12 @@ body {
 }
 
 /* ===================================================================
-   Edukasi Video Grid (YouTube Style)
+   Edukasi Video Grid (YouTube Horizontal Style)
    =================================================================== */
 .video-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-  gap: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   padding: 16px;
 }
 
@@ -1135,22 +1135,28 @@ body {
   border-radius: var(--radius-lg);
   overflow: hidden;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 16px;
   transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
 }
 
 .video-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 10px 28px rgba(0,0,0,0.35);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
   border-color: var(--primary);
 }
 
 .video-card-thumb {
-  width: 100%;
+  width: 260px;
+  min-width: 260px;
   aspect-ratio: 16 / 9;
   background: #0d0d14;
   position: relative;
   overflow: hidden;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
 }
 
 .video-card-thumb-img {
@@ -1188,38 +1194,19 @@ body {
 }
 
 .video-card-body {
-  padding: 14px 16px 16px;
+  padding: 0;
   display: flex;
   flex-direction: column;
   flex: 1;
-}
-
-.video-card-meta-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin-bottom: 6px;
-}
-
-.video-channel-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--primary);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 0.85rem;
-  flex-shrink: 0;
+  min-width: 0;
 }
 
 .video-card-title {
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   font-weight: 600;
   color: var(--text-main);
-  line-height: 1.35;
+  line-height: 1.4;
+  margin-bottom: 4px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -1229,16 +1216,54 @@ body {
 .video-card-subinfo {
   font-size: 0.78rem;
   color: var(--text-muted);
-  margin-top: 3px;
+  margin-bottom: 8px;
+}
+
+.video-channel-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.video-channel-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.video-channel-name {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-muted);
 }
 
 .video-card-desc {
-  font-size: 0.8rem;
+  font-size: 0.84rem;
   color: var(--text-muted);
   line-height: 1.5;
-  margin-top: 8px;
+  margin-bottom: 12px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+@media (max-width: 720px) {
+  .video-card {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .video-card-thumb {
+    width: 100%;
+    min-width: unset;
+  }
 }
