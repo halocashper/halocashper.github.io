@@ -11,6 +11,10 @@ const DEFAULT_CONFIG = {
 let supabaseClient = null;
 let allEmployees = [];
 let allWithdrawals = [];
+let allEdukasiVideos = [];
+
+const SUPABASE_URL = DEFAULT_CONFIG.url.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
+const STORAGE_BUCKET = 'edukasi-videos';
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
@@ -57,14 +61,16 @@ function navigate(sectionId) {
     overview: 'Dashboard Ringkasan',
     employees: 'Data & Direktori Karyawan',
     withdrawals: 'Riwayat Transaksi EWA',
-    payroll: 'Rekap Pemotongan Payroll'
+    payroll: 'Rekap Pemotongan Payroll',
+    edukasi: 'Manajemen Video Edukasi'
   };
 
   const navMap = {
     overview: 'navOverview',
     employees: 'navEmployees',
     withdrawals: 'navWithdrawals',
-    payroll: 'navPayroll'
+    payroll: 'navPayroll',
+    edukasi: 'navEdukasi'
   };
 
   const sectionEl = document.getElementById('section' + sectionId.charAt(0).toUpperCase() + sectionId.slice(1));
@@ -79,6 +85,7 @@ function navigate(sectionId) {
   if (sectionId === 'employees') loadEmployees();
   if (sectionId === 'withdrawals') loadWithdrawals();
   if (sectionId === 'payroll') loadPayrollRecap();
+  if (sectionId === 'edukasi') loadEdukasiVideos();
   if (sectionId === 'overview') {
     loadEmployees();
     loadWithdrawals();
@@ -116,7 +123,7 @@ async function loadEmployees() {
         id: e.id,
         full_name: e.full_name,
         email: e.email || '-',
-        company: e.company || 'PT Maju Bersama',
+        company: e.company || 'Cashper',
         role_id: e.role_id,
         role_name: e.roles?.name || (e.role_id === 1 ? 'Staff Operasional' : e.role_id === 2 ? 'Supervisor' : 'Manager'),
         base_salary: e.roles?.base_salary || (e.role_id === 1 ? 4000000 : e.role_id === 2 ? 7000000 : 12000000),
@@ -171,7 +178,7 @@ function renderEmployeesTable(list) {
           <div>${escapeHtml(emp.role_name || 'Staff')}</div>
           ${salaryDisplay}
         </td>
-        <td>${escapeHtml(emp.company || 'PT Maju Bersama')}</td>
+        <td>${escapeHtml(emp.company || 'Cashper')}</td>
         <td>
           <div><strong>${escapeHtml(emp.bank_name || '-')}</strong></div>
           <div class="emp-sub">${maskedAcc}</div>
@@ -217,7 +224,7 @@ function filterEmployees() {
 // -------------------------------------------------------------------
 function openAddEmployeeModal() {
   document.getElementById('addEmployeeForm').reset();
-  document.getElementById('addCompany').value = 'PT Maju Bersama';
+  document.getElementById('addCompany').value = 'Cashper';
   document.getElementById('addPassword').value = 'cashper123';
   document.getElementById('addBank').value = 'BRI';
   document.getElementById('addPayday').value = '28';
@@ -238,7 +245,7 @@ async function handleCreateEmployee(e) {
   const email = document.getElementById('addEmail').value.trim().toLowerCase();
   const password = document.getElementById('addPassword').value;
   const roleId = parseInt(document.getElementById('addRole').value, 10);
-  const company = document.getElementById('addCompany').value.trim() || 'PT Maju Bersama';
+  const company = document.getElementById('addCompany').value.trim() || 'Cashper';
   const bankName = document.getElementById('addBank').value;
   const accountNumber = document.getElementById('addAccount').value.trim();
   const payday = parseInt(document.getElementById('addPayday').value || '28', 10);
@@ -328,7 +335,7 @@ function openEditModalById(empId) {
   document.getElementById('editFullName').value = emp.full_name || '';
   document.getElementById('editEmail').value = emp.email || '';
   document.getElementById('editRole').value = emp.role_id || 1;
-  document.getElementById('editCompany').value = emp.company || 'PT Maju Bersama';
+  document.getElementById('editCompany').value = emp.company || 'Cashper';
   document.getElementById('editBank').value = emp.bank_name || 'BRI';
   document.getElementById('editAccount').value = emp.bank_account_number || '';
   document.getElementById('editPayday').value = emp.payday_day || 28;
@@ -345,7 +352,7 @@ async function handleUpdateEmployee(e) {
   const empId = document.getElementById('editEmployeeId').value;
   const fullName = document.getElementById('editFullName').value.trim();
   const roleId = parseInt(document.getElementById('editRole').value, 10);
-  const company = document.getElementById('editCompany').value.trim() || 'PT Maju Bersama';
+  const company = document.getElementById('editCompany').value.trim() || 'Cashper';
   const bankName = document.getElementById('editBank').value;
   const accountNumber = document.getElementById('editAccount').value.trim();
   const payday = parseInt(document.getElementById('editPayday').value || '28', 10);
@@ -486,7 +493,7 @@ function renderWithdrawalsTable(list) {
   const tbody = document.getElementById('withdrawalsTableBody');
 
   if (!list || list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" class="table-empty">Belum ada transaksi penarikan EWA.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="table-empty">Belum ada transaksi pencairan EWA.</td></tr>';
     return;
   }
 
@@ -509,9 +516,7 @@ function renderWithdrawalsTable(list) {
           <div class="emp-name">${escapeHtml(w.employee_name || '-')}</div>
           <div class="emp-sub">${escapeHtml(w.email || '-')}</div>
         </td>
-        <td><strong>${formatRupiah(w.amount)}</strong></td>
-        <td class="emp-sub">${Number(w.fee) > 0 ? formatRupiah(w.fee) : '<span style="color:var(--accent-mint); font-weight:500;">Rp 0 (Bebas Biaya)</span>'}</td>
-        <td class="emp-salary">${formatRupiah(w.net_amount)}</td>
+        <td class="emp-salary"><strong>${formatRupiah(w.amount)}</strong></td>
         <td>${escapeHtml(w.bank_name || '-')} (${escapeHtml(w.bank_account_masked || '-')})</td>
         <td class="emp-sub">${formatDateTime(w.created_at)}</td>
         <td><span class="status-tag ${statusClass}">${statusLabel}</span></td>
@@ -525,7 +530,7 @@ function renderOverviewWithdrawals(list) {
   const tbody = document.getElementById('overviewWithdrawalsBody');
 
   if (!list || list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" class="table-empty">Belum ada riwayat penarikan EWA.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" class="table-empty">Belum ada riwayat transaksi EWA.</td></tr>';
     return;
   }
 
@@ -539,7 +544,6 @@ function renderOverviewWithdrawals(list) {
         <td><code>${escapeHtml(w.reference_id || (w.id ? w.id.substring(0, 8) : '-'))}</code></td>
         <td><strong>${escapeHtml(w.employee_name || '-')}</strong></td>
         <td>${formatRupiah(w.amount)}</td>
-        <td class="emp-sub">${Number(w.fee) > 0 ? formatRupiah(w.fee) : '<span style="color:var(--accent-mint); font-weight:500;">Rp 0 (Bebas Biaya)</span>'}</td>
         <td><span class="status-tag ${statusClass}">${statusLabel}</span></td>
       </tr>
     `;
@@ -592,7 +596,7 @@ async function markWithdrawalSuccess(id) {
 }
 
 async function clearAllWithdrawals() {
-  if (!confirm('Apakah Anda yakin ingin MENGHAPUS SEMUA data riwayat penarikan EWA di seluruh akun karyawan agar data kembali fresh (bersih/nol)?')) {
+  if (!confirm('Apakah Anda yakin ingin MENGHAPUS SEMUA data riwayat transaksi EWA di seluruh akun karyawan agar data kembali fresh (bersih/nol)?')) {
     return;
   }
   try {
@@ -605,7 +609,7 @@ async function clearAllWithdrawals() {
         .neq('id', '00000000-0000-0000-0000-000000000000');
       if (delErr) throw delErr;
     }
-    showToast('Semua data penarikan berhasil dibersihkan! Saldo & limit karyawan kembali utuh.', 'success');
+    showToast('Semua data transaksi EWA berhasil dibersihkan! Saldo & limit karyawan kembali utuh.', 'success');
     allWithdrawals = [];
     loadWithdrawals();
     loadDashboardStats();
@@ -650,7 +654,7 @@ async function loadPayrollRecap() {
           </td>
           <td>
             <div>${escapeHtml(emp.role_name || 'HR Admin')}</div>
-            <div class="emp-sub">${escapeHtml(emp.company || 'PT Maju Bersama')}</div>
+            <div class="emp-sub">${escapeHtml(emp.company || 'Cashper')}</div>
           </td>
           <td><em>Akun Perusahaan</em></td>
           <td>-</td>
@@ -692,7 +696,7 @@ async function loadPayrollRecap() {
         </td>
         <td><strong>${formatRupiah(baseSalary)}</strong></td>
         <td><strong class="text-purple">${formatRupiah(totalEwa)}</strong></td>
-        <td>${countEwa}x Tarik</td>
+        <td>${countEwa}x Akses</td>
         <td><strong class="text-green">${formatRupiah(netPayday)}</strong></td>
         <td>${statusBadge}</td>
       </tr>
@@ -720,7 +724,7 @@ function copyPayrollRecap() {
   let text = `REKAP PEMOTONGAN GAJI (PAYROLL DEDUCTION) - CASHPER\n`;
   text += `Periode: Bulan Berjalan\n`;
   text += `------------------------------------------------------------\n`;
-  text += `Nama | Gaji Pokok | Total EWA Ditarik | Sisa Ditransfer Payday\n`;
+  text += `Nama | Gaji Pokok | Total EWA Dicairkan | Sisa Ditransfer Payday\n`;
   text += `------------------------------------------------------------\n`;
 
   allEmployees.forEach(emp => {
@@ -792,4 +796,284 @@ function showToast(message, type = 'info') {
     toast.style.transition = 'all 0.25s ease';
     setTimeout(() => toast.remove(), 250);
   }, 3500);
+}
+
+// -------------------------------------------------------------------
+// 8. Edukasi Video Management
+// -------------------------------------------------------------------
+async function loadEdukasiVideos() {
+  const grid = document.getElementById('edukasiVideoGrid');
+  if (!grid) return;
+  grid.innerHTML = '<div class="table-empty" style="padding:40px;text-align:center;color:var(--text-muted);">Memuat video edukasi...</div>';
+
+  try {
+    const { data, error } = await supabaseClient
+      .from('edukasi_videos')
+      .select('*')
+      .order('urutan', { ascending: true })
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    allEdukasiVideos = data || [];
+    renderEdukasiGrid(allEdukasiVideos);
+  } catch (err) {
+    console.error('loadEdukasiVideos error:', err);
+    grid.innerHTML = `<div class="table-empty" style="padding:40px;text-align:center;color:var(--danger);">Gagal memuat: ${escapeHtml(err.message)}<br><small>Pastikan tabel edukasi_videos sudah dibuat di Supabase (jalankan supabase/edukasi_videos.sql)</small></div>`;
+  }
+}
+
+function renderEdukasiGrid(list) {
+  const grid = document.getElementById('edukasiVideoGrid');
+  if (!grid) return;
+
+  if (!list || list.length === 0) {
+    grid.innerHTML = `
+      <div style="padding:60px 20px; text-align:center; color:var(--text-muted);">
+        <span class="material-symbols-rounded" style="font-size:48px; display:block; margin-bottom:12px; opacity:0.4;">video_library</span>
+        <div style="font-size:1rem; font-weight:600; margin-bottom:6px;">Belum Ada Video</div>
+        <div style="font-size:0.85rem;">Klik tombol "+ Upload Video" untuk menambahkan video edukasi pertama.</div>
+      </div>`;
+    return;
+  }
+
+  grid.innerHTML = list.map(v => {
+    const publishBadge = v.is_published
+      ? `<span style="background:var(--success-subtle);color:var(--success);padding:2px 8px;border-radius:var(--radius-pill);font-size:0.72rem;font-weight:600;">● Published</span>`
+      : `<span style="background:var(--warning-subtle);color:var(--warning);padding:2px 8px;border-radius:var(--radius-pill);font-size:0.72rem;font-weight:600;">◌ Draft</span>`;
+
+    const previewBtn = v.video_url
+      ? `<a href="${escapeHtml(v.video_url)}" target="_blank" class="btn btn-secondary btn-sm" title="Preview Video">
+           <span class="material-symbols-rounded" style="font-size:15px;">play_circle</span>
+           <span>Preview</span>
+         </a>`
+      : `<button class="btn btn-secondary btn-sm" disabled style="opacity:0.4;cursor:not-allowed;">
+           <span class="material-symbols-rounded" style="font-size:15px;">videocam_off</span>
+           <span>No URL</span>
+         </button>`;
+
+    return `
+      <div class="video-card">
+        <div class="video-card-thumb" style="background: linear-gradient(135deg, ${escapeHtml(v.warna_badge || '#6A1B9A')}, ${escapeHtml(v.warna_badge || '#6A1B9A')}88);">
+          <span class="material-symbols-rounded" style="font-size:36px;color:white;opacity:0.9;">play_circle</span>
+          <div class="video-card-durasi">${escapeHtml(v.durasi || '--:--')}</div>
+        </div>
+        <div class="video-card-body">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px;">
+            <span style="background:${escapeHtml(v.warna_badge || '#6A1B9A')}22;color:${escapeHtml(v.warna_badge || '#6A1B9A')};padding:2px 8px;border-radius:var(--radius-pill);font-size:0.72rem;font-weight:600;">${escapeHtml(v.kategori || 'Umum')}</span>
+            ${publishBadge}
+          </div>
+          <div class="video-card-title">${escapeHtml(v.judul)}</div>
+          <div class="video-card-desc">${escapeHtml(v.deskripsi || '')}</div>
+          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+            ${previewBtn}
+            <button class="btn btn-secondary btn-sm" onclick="openEditVideoModal('${v.id}')">
+              <span class="material-symbols-rounded" style="font-size:15px;">edit</span>
+              <span>Edit</span>
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="toggleVideoPublish('${v.id}', ${v.is_published})" title="${v.is_published ? 'Sembunyikan dari user' : 'Publish ke user'}">
+              <span class="material-symbols-rounded" style="font-size:15px;">${v.is_published ? 'visibility_off' : 'visibility'}</span>
+            </button>
+            <button class="btn btn-danger btn-sm" onclick="deleteEdukasiVideo('${v.id}', '${escapeHtml(v.storage_path || '')}')" title="Hapus Video">
+              <span class="material-symbols-rounded" style="font-size:15px;">delete</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function openAddVideoModal() {
+  document.getElementById('addVideoForm').reset();
+  document.getElementById('uploadProgressWrap').style.display = 'none';
+  document.getElementById('uploadProgressBar').style.width = '0%';
+  document.getElementById('addVideoModal').classList.add('show');
+}
+
+async function handleUploadVideo(e) {
+  e.preventDefault();
+  const btn = document.getElementById('btnSubmitVideo');
+  const btnText = document.getElementById('textSubmitVideo');
+
+  const judul = document.getElementById('videoJudul').value.trim();
+  const deskripsi = document.getElementById('videoDeskripsi').value.trim();
+  const kategori = document.getElementById('videoKategori').value;
+  const durasi = document.getElementById('videoDurasi').value.trim() || '00:00';
+  const urutan = parseInt(document.getElementById('videoUrutan').value || '0', 10);
+  const warnaBadge = document.getElementById('videoWarna').value;
+  const isPublished = document.getElementById('videoPublish').checked;
+  const fileInput = document.getElementById('videoFile');
+  const file = fileInput.files[0];
+
+  if (!file) { showToast('Pilih file video MP4 terlebih dahulu', 'error'); return; }
+
+  btn.classList.add('loading');
+  btn.disabled = true;
+  btnText.textContent = 'Mengunggah...';
+
+  // Show progress bar
+  document.getElementById('uploadProgressWrap').style.display = 'block';
+  const progressBar = document.getElementById('uploadProgressBar');
+  const progressLabel = document.getElementById('uploadProgressLabel');
+
+  try {
+    // 1. Upload file ke Supabase Storage
+    const ext = file.name.split('.').pop();
+    const timestamp = Date.now();
+    const safeName = judul.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 40);
+    const storagePath = `${safeName}_${timestamp}.${ext}`;
+
+    // Simulasi progress (Supabase JS v2 tidak support progress callback natively)
+    let fakeProgress = 0;
+    const progressInterval = setInterval(() => {
+      fakeProgress = Math.min(fakeProgress + Math.random() * 15, 85);
+      progressBar.style.width = fakeProgress + '%';
+      progressLabel.textContent = `Mengunggah... ${Math.round(fakeProgress)}%`;
+    }, 400);
+
+    const { data: storageData, error: storageError } = await supabaseClient.storage
+      .from(STORAGE_BUCKET)
+      .upload(storagePath, file, {
+        contentType: file.type || 'video/mp4',
+        upsert: false
+      });
+
+    clearInterval(progressInterval);
+
+    if (storageError) throw new Error('Upload gagal: ' + storageError.message);
+
+    progressBar.style.width = '95%';
+    progressLabel.textContent = 'Menyimpan metadata...';
+
+    // 2. Get public URL
+    const { data: urlData } = supabaseClient.storage
+      .from(STORAGE_BUCKET)
+      .getPublicUrl(storagePath);
+
+    const videoUrl = urlData?.publicUrl || null;
+
+    // 3. Insert metadata ke tabel
+    const { error: insertError } = await supabaseClient
+      .from('edukasi_videos')
+      .insert({
+        judul,
+        deskripsi,
+        kategori,
+        durasi,
+        urutan,
+        warna_badge: warnaBadge,
+        storage_path: storagePath,
+        video_url: videoUrl,
+        is_published: isPublished
+      });
+
+    if (insertError) throw insertError;
+
+    progressBar.style.width = '100%';
+    progressLabel.textContent = 'Selesai!';
+
+    showToast(`Video "${judul}" berhasil diupload!`, 'success');
+    closeModal('addVideoModal');
+    loadEdukasiVideos();
+
+  } catch (err) {
+    console.error('handleUploadVideo error:', err);
+    showToast(err.message || 'Gagal mengupload video', 'error');
+    progressLabel.textContent = 'Upload gagal.';
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+    btnText.textContent = 'Upload & Simpan';
+  }
+}
+
+function openEditVideoModal(videoId) {
+  const v = allEdukasiVideos.find(x => x.id === videoId);
+  if (!v) { showToast('Video tidak ditemukan', 'error'); return; }
+
+  document.getElementById('editVideoId').value = v.id;
+  document.getElementById('editVideoJudul').value = v.judul || '';
+  document.getElementById('editVideoDeskripsi').value = v.deskripsi || '';
+  document.getElementById('editVideoKategori').value = v.kategori || 'Umum';
+  document.getElementById('editVideoDurasi').value = v.durasi || '';
+  document.getElementById('editVideoUrutan').value = v.urutan ?? 0;
+  document.getElementById('editVideoWarna').value = v.warna_badge || '#6A1B9A';
+  document.getElementById('editVideoPublish').checked = v.is_published || false;
+
+  document.getElementById('editVideoModal').classList.add('show');
+}
+
+async function handleUpdateVideo(e) {
+  e.preventDefault();
+  const btn = document.getElementById('btnSubmitEditVideo');
+  const btnText = document.getElementById('textSubmitEditVideo');
+
+  const id = document.getElementById('editVideoId').value;
+  const judul = document.getElementById('editVideoJudul').value.trim();
+  const deskripsi = document.getElementById('editVideoDeskripsi').value.trim();
+  const kategori = document.getElementById('editVideoKategori').value;
+  const durasi = document.getElementById('editVideoDurasi').value.trim();
+  const urutan = parseInt(document.getElementById('editVideoUrutan').value || '0', 10);
+  const warnaBadge = document.getElementById('editVideoWarna').value;
+  const isPublished = document.getElementById('editVideoPublish').checked;
+
+  btn.classList.add('loading');
+  btn.disabled = true;
+  btnText.textContent = 'Menyimpan...';
+
+  try {
+    const { error } = await supabaseClient
+      .from('edukasi_videos')
+      .update({ judul, deskripsi, kategori, durasi, urutan, warna_badge: warnaBadge, is_published: isPublished })
+      .eq('id', id);
+
+    if (error) throw error;
+    showToast(`Video "${judul}" berhasil diperbarui!`, 'success');
+    closeModal('editVideoModal');
+    loadEdukasiVideos();
+  } catch (err) {
+    showToast(err.message || 'Gagal menyimpan', 'error');
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+    btnText.textContent = 'Simpan Perubahan';
+  }
+}
+
+async function toggleVideoPublish(videoId, currentPublished) {
+  const newStatus = !currentPublished;
+  try {
+    const { error } = await supabaseClient
+      .from('edukasi_videos')
+      .update({ is_published: newStatus })
+      .eq('id', videoId);
+    if (error) throw error;
+    showToast(newStatus ? 'Video dipublish ke pengguna!' : 'Video disembunyikan dari pengguna.', 'success');
+    loadEdukasiVideos();
+  } catch (err) {
+    showToast('Gagal: ' + err.message, 'error');
+  }
+}
+
+async function deleteEdukasiVideo(videoId, storagePath) {
+  if (!confirm('Hapus video ini secara permanen? File di storage dan datanya akan dihapus.')) return;
+  try {
+    // Hapus file dari storage
+    if (storagePath) {
+      const { error: storageErr } = await supabaseClient.storage
+        .from(STORAGE_BUCKET)
+        .remove([storagePath]);
+      if (storageErr) console.warn('Storage delete warn:', storageErr.message);
+    }
+    // Hapus record dari tabel
+    const { error } = await supabaseClient
+      .from('edukasi_videos')
+      .delete()
+      .eq('id', videoId);
+    if (error) throw error;
+    showToast('Video berhasil dihapus.', 'success');
+    loadEdukasiVideos();
+  } catch (err) {
+    showToast('Gagal menghapus: ' + err.message, 'error');
+  }
 }
