@@ -46,6 +46,12 @@
           <span class="nav-label">Transaksi EWA</span>
         </button>
 
+        <button class="nav-item" id="navLoans" onclick="navigate('loans')">
+          <span class="material-symbols-rounded">handshake</span>
+          <span class="nav-label">Pinjaman Karyawan</span>
+          <span class="nav-badge-pill" id="badgeLoansNav">1</span>
+        </button>
+
         <button class="nav-item" id="navPayroll" onclick="navigate('payroll')">
           <span class="material-symbols-rounded">account_balance</span>
           <span class="nav-label">Rekap Payroll</span>
@@ -204,6 +210,38 @@
                   <span class="role-limit">Standar Acuan Posisi</span>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- Quick Overview: Pengajuan Pinjaman Perlu Validasi HRD -->
+          <div class="panel-card" style="margin-top: 24px;">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <span class="material-symbols-rounded text-purple">handshake</span>
+                <h3 class="panel-title">Pengajuan Pinjaman Karyawan (Perlu Validasi HRD)</h3>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="navigate('loans')">
+                Kelola Semua Pinjaman
+              </button>
+            </div>
+            <div class="table-responsive">
+              <table class="simple-table">
+                <thead>
+                  <tr>
+                    <th>Ref ID</th>
+                    <th>Karyawan</th>
+                    <th>Pokok Pinjaman</th>
+                    <th>Tenor & Bunga</th>
+                    <th>Cicilan / Bln</th>
+                    <th>Skema Pelunasan</th>
+                    <th>Status</th>
+                    <th style="text-align: center;">Aksi Cepat HRD</th>
+                  </tr>
+                </thead>
+                <tbody id="overviewLoansBody">
+                  <tr><td colspan="8" class="table-empty">Memuat data pinjaman...</td></tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </section>
@@ -381,6 +419,105 @@
 
             <div id="edukasiVideoGrid" class="video-grid">
               <div class="table-empty" style="padding: 40px; text-align: center; color: var(--text-muted);">Memuat video edukasi...</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 6: PINJAMAN KARYAWAN -->
+        <section id="sectionLoans" class="content-section">
+          <!-- Stats row for loans -->
+          <div class="stats-grid" style="margin-bottom: 24px;">
+            <div class="stat-card">
+              <div class="stat-icon-wrapper amber">
+                <span class="material-symbols-rounded">pending_actions</span>
+              </div>
+              <div class="stat-data">
+                <span class="stat-caption">Perlu Ditinjau HRD</span>
+                <span class="stat-number" id="loansStatPending">1</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon-wrapper mint">
+                <span class="material-symbols-rounded">check_circle</span>
+              </div>
+              <div class="stat-data">
+                <span class="stat-caption">Pinjaman Disetujui (Aktif)</span>
+                <span class="stat-number" id="loansStatApproved">1</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon-wrapper purple">
+                <span class="material-symbols-rounded">payments</span>
+              </div>
+              <div class="stat-data">
+                <span class="stat-caption">Total Pokok Tersalurkan</span>
+                <span class="stat-number" id="loansStatTotalDisbursed">Rp 1.000.000</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon-wrapper blue">
+                <span class="material-symbols-rounded">account_balance</span>
+              </div>
+              <div class="stat-data">
+                <span class="stat-caption">Potongan Payroll Bulan Ini</span>
+                <span class="stat-number" id="loansStatPayrollDeduction">Rp 1.010.000</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Panel Table Pinjaman -->
+          <div class="panel-card">
+            <div class="panel-header table-toolbar" style="flex-wrap: wrap; gap: 14px;">
+              <div class="search-box">
+                <span class="material-symbols-rounded">search</span>
+                <input type="text" id="loanSearchInput" placeholder="Cari nama karyawan, ID pinjaman, divisi..." oninput="filterLoans()">
+              </div>
+
+              <!-- Filter tabs -->
+              <div class="filter-group" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button class="btn btn-sm btn-filter active" id="filterLoanAll" onclick="setLoanStatusFilter('ALL')">Semua (<span id="countLoanAll">3</span>)</button>
+                <button class="btn btn-sm btn-filter" id="filterLoanPending" onclick="setLoanStatusFilter('PENDING')">Perlu Review (<span id="countLoanPending">1</span>)</button>
+                <button class="btn btn-sm btn-filter" id="filterLoanApproved" onclick="setLoanStatusFilter('APPROVED')">Disetujui (<span id="countLoanApproved">1</span>)</button>
+                <button class="btn btn-sm btn-filter" id="filterLoanRejected" onclick="setLoanStatusFilter('REJECTED')">Ditolak (<span id="countLoanRejected">0</span>)</button>
+                <button class="btn btn-sm btn-filter" id="filterLoanPaid" onclick="setLoanStatusFilter('PAID_OFF')">Lunas (<span id="countLoanPaid">1</span>)</button>
+              </div>
+
+              <div class="toolbar-actions" style="display: flex; gap: 10px; align-items: center;">
+                <select id="loanMethodFilter" class="btn btn-secondary btn-sm" onchange="filterLoans()" style="background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border-subtle); outline: none;">
+                  <option value="ALL">Semua Skema</option>
+                  <option value="PAYROLL_DEDUCTION">Potong Gaji Otomatis</option>
+                  <option value="DIRECT_TRANSFER">Cicilan Mandiri</option>
+                </select>
+                <button class="btn btn-primary btn-sm" onclick="simulateNewLoanIncoming()">
+                  <span class="material-symbols-rounded">add</span>
+                  <span>+ Simulasi Masuk</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Ref ID</th>
+                    <th>Karyawan</th>
+                    <th>Pokok Pinjaman</th>
+                    <th>Tenor & Bunga (1%/bln)</th>
+                    <th>Cicilan / Bln</th>
+                    <th>Skema Pelunasan</th>
+                    <th>Keperluan</th>
+                    <th>Status</th>
+                    <th>Tanggal</th>
+                    <th style="text-align: center;">Aksi HRD</th>
+                  </tr>
+                </thead>
+                <tbody id="loansTableBody">
+                  <tr><td colspan="10" class="table-empty">Memuat data pinjaman...</td></tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </section>
@@ -675,6 +812,109 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- MODAL: DETAIL & VALIDASI PINJAMAN -->
+  <div class="modal-backdrop" id="reviewLoanModal">
+    <div class="modal-dialog" style="max-width: 620px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="material-symbols-rounded text-purple">handshake</span>
+          <h3 id="modalReviewLoanTitle">Validasi Pinjaman Karyawan</h3>
+        </div>
+        <button class="btn-close" onclick="closeModal('reviewLoanModal')">
+          <span class="material-symbols-rounded">close</span>
+        </button>
+      </div>
+
+      <div class="modal-body" id="reviewLoanModalBody">
+        <!-- Filled dynamically -->
+      </div>
+
+      <div class="modal-footer" style="justify-content: space-between;">
+        <button type="button" class="btn btn-danger btn-sm" onclick="triggerRejectFromReview()">
+          <span class="material-symbols-rounded">close</span>
+          <span>Tolak Pengajuan</span>
+        </button>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('reviewLoanModal')">Tutup</button>
+          <button type="button" class="btn btn-primary btn-sm" id="btnApproveLoanConfirm" onclick="handleApproveLoan()">
+            <span class="material-symbols-rounded">check</span>
+            <span>Setujui & Cairkan Sekarang</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ALASAN PENOLAKAN PINJAMAN -->
+  <div class="modal-backdrop" id="rejectLoanModal">
+    <div class="modal-dialog" style="max-width: 480px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="material-symbols-rounded text-danger">cancel</span>
+          <h3>Tolak Permohonan Pinjaman</h3>
+        </div>
+        <button class="btn-close" onclick="closeModal('rejectLoanModal')">
+          <span class="material-symbols-rounded">close</span>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px;">
+          Pilih atau ketik alasan penolakan yang akan dikirimkan ke karyawan via aplikasi Cashper:
+        </p>
+
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
+          <button type="button" class="btn btn-secondary btn-sm" style="text-align: left; justify-content: flex-start;" onclick="setRejectReason('Plafon maksimal pinjaman aktif tercapai')">
+            ● Plafon maksimal pinjaman aktif tercapai
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" style="text-align: left; justify-content: flex-start;" onclick="setRejectReason('Masa kerja belum memenuhi syarat minimum pinjaman perusahaan')">
+            ● Masa kerja belum memenuhi syarat minimum
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" style="text-align: left; justify-content: flex-start;" onclick="setRejectReason('Keterangan atau dokumen pendukung belum lengkap')">
+            ● Keterangan atau dokumen pendukung belum lengkap
+          </button>
+        </div>
+
+        <div class="form-group full-width">
+          <label>Keterangan Penolakan HRD <span class="required">*</span></label>
+          <textarea id="loanRejectReasonInput" rows="3" style="width:100%; background:var(--bg-input); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:10px 12px; color:var(--text-main); font-family:var(--font-body); font-size:0.88rem; resize:vertical;" placeholder="Tuliskan alasan penolakan..."></textarea>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('rejectLoanModal')">Batal</button>
+        <button type="button" class="btn btn-danger" onclick="handleConfirmRejectLoan()">Konfirmasi Tolak</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CETAK SLIP PERSETUJUAN PINJAMAN -->
+  <div class="modal-backdrop" id="slipLoanModal">
+    <div class="modal-dialog" style="max-width: 660px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="material-symbols-rounded text-purple">receipt</span>
+          <h3>Surat Bukti Persetujuan Pinjaman</h3>
+        </div>
+        <button class="btn-close" onclick="closeModal('slipLoanModal')">
+          <span class="material-symbols-rounded">close</span>
+        </button>
+      </div>
+
+      <div class="modal-body" id="slipLoanPrintableArea" style="background: #ffffff; color: #0F172A; border-radius: 8px; padding: 20px; font-family: 'Inter', sans-serif;">
+        <!-- Printable Slip Content -->
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('slipLoanModal')">Tutup</button>
+        <button type="button" class="btn btn-primary" onclick="window.print()">
+          <span class="material-symbols-rounded">print</span>
+          <span>Cetak Dokumen</span>
+        </button>
+      </div>
     </div>
   </div>
 

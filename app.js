@@ -21,6 +21,8 @@ document.addEventListener('DOMContentLoaded', () => {
   initSupabase();
   loadEmployees();
   loadWithdrawals();
+  loadLoans();
+  loadLoansOverview();
 });
 
 // -------------------------------------------------------------------
@@ -61,6 +63,7 @@ function navigate(sectionId) {
     overview: 'Dashboard Ringkasan',
     employees: 'Data & Direktori Karyawan',
     withdrawals: 'Riwayat Transaksi EWA',
+    loans: 'Persetujuan & Manajemen Pinjaman Karyawan',
     payroll: 'Rekap Pemotongan Payroll',
     edukasi: 'Manajemen Video Edukasi'
   };
@@ -69,6 +72,7 @@ function navigate(sectionId) {
     overview: 'navOverview',
     employees: 'navEmployees',
     withdrawals: 'navWithdrawals',
+    loans: 'navLoans',
     payroll: 'navPayroll',
     edukasi: 'navEdukasi'
   };
@@ -84,11 +88,13 @@ function navigate(sectionId) {
   // Refresh data on navigation
   if (sectionId === 'employees') loadEmployees();
   if (sectionId === 'withdrawals') loadWithdrawals();
+  if (sectionId === 'loans') loadLoans();
   if (sectionId === 'payroll') loadPayrollRecap();
   if (sectionId === 'edukasi') loadEdukasiVideos();
   if (sectionId === 'overview') {
     loadEmployees();
     loadWithdrawals();
+    loadLoansOverview();
   }
 
   // Close mobile sidebar if open
@@ -1266,3 +1272,537 @@ async function deleteEdukasiVideo(videoId, storagePath, thumbUrl) {
     showToast('Gagal menghapus: ' + err.message, 'error');
   }
 }
+
+// -------------------------------------------------------------------
+// 9. Pinjaman Karyawan Management & HR Approval Workflow
+// -------------------------------------------------------------------
+const STORAGE_KEY_LOANS = 'cashper_hr_loans_db';
+
+const INITIAL_WEB_LOANS = [
+  {
+    id: "LOAN-1001",
+    employeeName: "Surya",
+    employeeRole: "Staff Operasional",
+    baseSalary: 4000000,
+    amount: 1000000,
+    tenorMonths: 2,
+    interestRateMonthly: 0.01,
+    totalInterest: 20000,
+    totalRepayment: 1020000,
+    monthlyInstallment: 510000,
+    reasonCategory: "Kebutuhan Mendesak Awal Bulan",
+    notes: "Keperluan darurat keluarga sebelum tanggal gajian tiba.",
+    status: "PENDING",
+    appliedDate: "15 Okt 2026, 14:20 WIB",
+    approvedDate: null,
+    rejectionReason: null,
+    paymentMethod: "PAYROLL_DEDUCTION",
+    remainingBalance: 1020000
+  },
+  {
+    id: "LOAN-0942",
+    employeeName: "Budi Santoso",
+    employeeRole: "Logistik & Gudang",
+    baseSalary: 4000000,
+    amount: 1000000,
+    tenorMonths: 1,
+    interestRateMonthly: 0.01,
+    totalInterest: 10000,
+    totalRepayment: 1010000,
+    monthlyInstallment: 1010000,
+    reasonCategory: "Perbaikan Kendaraan Kerja",
+    notes: "Ganti ban & servis motor operasional.",
+    status: "APPROVED",
+    appliedDate: "05 Okt 2026, 10:15 WIB",
+    approvedDate: "05 Okt 2026, 14:30 WIB",
+    rejectionReason: null,
+    paymentMethod: "PAYROLL_DEDUCTION",
+    remainingBalance: 1010000
+  },
+  {
+    id: "LOAN-0870",
+    employeeName: "Rina Melati",
+    employeeRole: "Customer Support",
+    baseSalary: 4000000,
+    amount: 2000000,
+    tenorMonths: 2,
+    interestRateMonthly: 0.01,
+    totalInterest: 40000,
+    totalRepayment: 2040000,
+    monthlyInstallment: 1020000,
+    reasonCategory: "Biaya Pendidikan",
+    notes: "Daftar ulang semester sekolah anak.",
+    status: "PAID_OFF",
+    appliedDate: "10 Sep 2026, 08:30 WIB",
+    approvedDate: "10 Sep 2026, 11:20 WIB",
+    rejectionReason: null,
+    paymentMethod: "DIRECT_TRANSFER",
+    remainingBalance: 0
+  }
+];
+
+let allLoans = [];
+let currentLoanFilterStatus = 'ALL';
+let activeLoanInReviewId = null;
+
+function getStoredLoans() {
+  const saved = localStorage.getItem(STORAGE_KEY_LOANS);
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch (e) {
+      return [...INITIAL_WEB_LOANS];
+    }
+  }
+  localStorage.setItem(STORAGE_KEY_LOANS, JSON.stringify(INITIAL_WEB_LOANS));
+  return [...INITIAL_WEB_LOANS];
+}
+
+function saveStoredLoans(data) {
+  allLoans = data;
+  localStorage.setItem(STORAGE_KEY_LOANS, JSON.stringify(data));
+  updateLoanStatsAndBadges();
+  renderLoansTable(getFilteredLoans());
+  loadLoansOverview();
+}
+
+function updateLoanStatsAndBadges() {
+  const pendingCount = allLoans.filter(l => l.status === 'PENDING').length;
+  const approvedCount = allLoans.filter(l => l.status === 'APPROVED').length;
+  const totalDisbursed = allLoans
+    .filter(l => l.status === 'APPROVED' || l.status === 'PAID_OFF')
+    .reduce((sum, l) => sum + Number(l.amount || 0), 0);
+  const payrollDeduction = allLoans
+    .filter(l => l.status === 'APPROVED' && l.paymentMethod === 'PAYROLL_DEDUCTION')
+    .reduce((sum, l) => sum + Number(l.monthlyInstallment || 0), 0);
+
+  // Update Section 6 Stats
+  const statPendingEl = document.getElementById('loansStatPending');
+  const statApprovedEl = document.getElementById('loansStatApproved');
+  const statDisbursedEl = document.getElementById('loansStatTotalDisbursed');
+  const statPayrollEl = document.getElementById('loansStatPayrollDeduction');
+
+  if (statPendingEl) statPendingEl.textContent = pendingCount;
+  if (statApprovedEl) statApprovedEl.textContent = approvedCount;
+  if (statDisbursedEl) statDisbursedEl.textContent = formatRupiah(totalDisbursed);
+  if (statPayrollEl) statPayrollEl.textContent = formatRupiah(payrollDeduction);
+
+  // Update counts in filter buttons
+  const cAll = document.getElementById('countLoanAll');
+  const cPending = document.getElementById('countLoanPending');
+  const cApproved = document.getElementById('countLoanApproved');
+  const cRejected = document.getElementById('countLoanRejected');
+  const cPaid = document.getElementById('countLoanPaid');
+
+  if (cAll) cAll.textContent = allLoans.length;
+  if (cPending) cPending.textContent = pendingCount;
+  if (cApproved) cApproved.textContent = approvedCount;
+  if (cRejected) cRejected.textContent = allLoans.filter(l => l.status === 'REJECTED').length;
+  if (cPaid) cPaid.textContent = allLoans.filter(l => l.status === 'PAID_OFF').length;
+
+  // Sidebar badge
+  const navBadge = document.getElementById('badgeLoansNav');
+  if (navBadge) {
+    if (pendingCount > 0) {
+      navBadge.style.display = 'inline-block';
+      navBadge.textContent = pendingCount;
+    } else {
+      navBadge.style.display = 'none';
+    }
+  }
+}
+
+function loadLoans() {
+  allLoans = getStoredLoans();
+  updateLoanStatsAndBadges();
+  renderLoansTable(getFilteredLoans());
+}
+
+function getFilteredLoans() {
+  const query = (document.getElementById('loanSearchInput')?.value || '').trim().toLowerCase();
+  const methodFilter = document.getElementById('loanMethodFilter')?.value || 'ALL';
+
+  return allLoans.filter(l => {
+    if (currentLoanFilterStatus !== 'ALL' && l.status !== currentLoanFilterStatus) return false;
+    if (methodFilter !== 'ALL' && l.paymentMethod !== methodFilter) return false;
+    if (query) {
+      const matchId = (l.id || '').toLowerCase().includes(query);
+      const matchName = (l.employeeName || '').toLowerCase().includes(query);
+      const matchRole = (l.employeeRole || '').toLowerCase().includes(query);
+      if (!matchId && !matchName && !matchRole) return false;
+    }
+    return true;
+  });
+}
+
+function filterLoans() {
+  renderLoansTable(getFilteredLoans());
+}
+
+function setLoanStatusFilter(status) {
+  currentLoanFilterStatus = status;
+  document.querySelectorAll('#sectionLoans .btn-filter').forEach(btn => btn.classList.remove('active'));
+
+  const activeBtnMap = {
+    ALL: 'filterLoanAll',
+    PENDING: 'filterLoanPending',
+    APPROVED: 'filterLoanApproved',
+    REJECTED: 'filterLoanRejected',
+    PAID_OFF: 'filterLoanPaid'
+  };
+  const activeBtn = document.getElementById(activeBtnMap[status]);
+  if (activeBtn) activeBtn.classList.add('active');
+
+  filterLoans();
+}
+
+function renderLoansTable(list) {
+  const tbody = document.getElementById('loansTableBody');
+  if (!tbody) return;
+
+  if (!list || list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="10" class="table-empty">Tidak ada pengajuan pinjaman yang cocok.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = list.map(l => {
+    let statusBadge = '';
+    if (l.status === 'PENDING') {
+      statusBadge = '<span class="status-tag pending">● Perlu Review</span>';
+    } else if (l.status === 'APPROVED') {
+      statusBadge = '<span class="status-tag disbursed">✓ Disetujui</span>';
+    } else if (l.status === 'REJECTED') {
+      statusBadge = '<span class="status-tag rejected">✕ Ditolak</span>';
+    } else {
+      statusBadge = '<span class="status-tag active">✓ Lunas</span>';
+    }
+
+    const methodBadge = l.paymentMethod === 'PAYROLL_DEDUCTION'
+      ? '<span class="status-tag payroll">Potong Gaji Otomatis</span>'
+      : '<span class="status-tag direct">Cicilan Mandiri</span>';
+
+    let actionCell = '';
+    if (l.status === 'PENDING') {
+      actionCell = `
+        <div style="display: flex; gap: 6px; justify-content: center;">
+          <button class="btn btn-primary btn-sm" onclick="openLoanReviewModal('${l.id}')">
+            Tinjau & Setujui
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="openLoanRejectModal('${l.id}')">
+            Tolak
+          </button>
+        </div>
+      `;
+    } else {
+      actionCell = `
+        <div style="display: flex; gap: 6px; justify-content: center;">
+          <button class="btn btn-secondary btn-sm" onclick="openLoanSlipModal('${l.id}')">
+            Lihat Slip
+          </button>
+        </div>
+      `;
+    }
+
+    return `
+      <tr>
+        <td><code>${escapeHtml(l.id)}</code></td>
+        <td>
+          <div class="emp-name">${escapeHtml(l.employeeName)}</div>
+          <div class="emp-sub">${escapeHtml(l.employeeRole)}</div>
+        </td>
+        <td class="emp-salary"><strong>${formatRupiah(l.amount)}</strong></td>
+        <td>
+          <div><strong>${l.tenorMonths} Bulan</strong></div>
+          <div class="emp-sub">+${formatRupiah(l.totalInterest)} (Bunga ${(l.tenorMonths * 1.0)}%)</div>
+        </td>
+        <td>
+          <div style="color: var(--success); font-weight: 600;">${formatRupiah(l.monthlyInstallment)}/bln</div>
+          <div class="emp-sub">Total: ${formatRupiah(l.totalRepayment)}</div>
+        </td>
+        <td>${methodBadge}</td>
+        <td>
+          <div style="max-width: 150px; font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(l.reasonCategory + ' - ' + l.notes)}">
+            ${escapeHtml(l.reasonCategory)}
+          </div>
+        </td>
+        <td>${statusBadge}</td>
+        <td class="emp-sub">${escapeHtml(l.appliedDate)}</td>
+        <td style="text-align: center;">${actionCell}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function loadLoansOverview() {
+  allLoans = getStoredLoans();
+  updateLoanStatsAndBadges();
+
+  const tbody = document.getElementById('overviewLoansBody');
+  if (!tbody) return;
+
+  const pendingOrRecent = allLoans.slice(0, 5);
+  if (!pendingOrRecent || pendingOrRecent.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="table-empty">Belum ada permohonan pinjaman karyawan.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = pendingOrRecent.map(l => {
+    let statusBadge = '';
+    if (l.status === 'PENDING') {
+      statusBadge = '<span class="status-tag pending">● Perlu Review</span>';
+    } else if (l.status === 'APPROVED') {
+      statusBadge = '<span class="status-tag disbursed">✓ Disetujui</span>';
+    } else if (l.status === 'REJECTED') {
+      statusBadge = '<span class="status-tag rejected">✕ Ditolak</span>';
+    } else {
+      statusBadge = '<span class="status-tag active">✓ Lunas</span>';
+    }
+
+    const methodLabel = l.paymentMethod === 'PAYROLL_DEDUCTION'
+      ? '<span class="status-tag payroll">Potong Gaji</span>'
+      : '<span class="status-tag direct">Cicilan Mandiri</span>';
+
+    const actionCell = l.status === 'PENDING'
+      ? `<button class="btn btn-primary btn-sm" onclick="navigate('loans'); openLoanReviewModal('${l.id}')">Validasi</button>`
+      : `<button class="btn btn-secondary btn-sm" onclick="openLoanSlipModal('${l.id}')">Slip</button>`;
+
+    return `
+      <tr>
+        <td><code>${escapeHtml(l.id)}</code></td>
+        <td><strong>${escapeHtml(l.employeeName)}</strong> <span class="emp-sub">(${escapeHtml(l.employeeRole)})</span></td>
+        <td><strong>${formatRupiah(l.amount)}</strong></td>
+        <td>${l.tenorMonths} Bln (+${formatRupiah(l.totalInterest)})</td>
+        <td style="color: var(--success); font-weight: 600;">${formatRupiah(l.monthlyInstallment)}/bln</td>
+        <td>${methodLabel}</td>
+        <td>${statusBadge}</td>
+        <td style="text-align: center;">${actionCell}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function openLoanReviewModal(loanId) {
+  const loan = allLoans.find(l => l.id === loanId);
+  if (!loan) return;
+
+  activeLoanInReviewId = loanId;
+  const titleEl = document.getElementById('modalReviewLoanTitle');
+  if (titleEl) titleEl.textContent = `Validasi Pinjaman ${loan.id} - ${loan.employeeName}`;
+
+  const maxQuota = (loan.baseSalary || 4000000) / 2;
+  const bodyEl = document.getElementById('reviewLoanModalBody');
+
+  bodyEl.innerHTML = `
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;">
+      <div style="background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 14px;">
+        <span style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 8px;">Profil Karyawan</span>
+        <div style="font-size: 0.85rem; margin-bottom: 4px;">Nama: <strong>${escapeHtml(loan.employeeName)}</strong></div>
+        <div style="font-size: 0.85rem; margin-bottom: 4px;">Jabatan: <strong>${escapeHtml(loan.employeeRole)}</strong></div>
+        <div style="font-size: 0.85rem; margin-bottom: 4px;">Gaji Pokok: <strong>${formatRupiah(loan.baseSalary || 4000000)}</strong></div>
+        <div style="font-size: 0.85rem; color: #3b82f6;">Maks Plafon (50%): <strong>${formatRupiah(maxQuota)}</strong></div>
+      </div>
+
+      <div style="background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 14px;">
+        <span style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 8px;">Rincian Pinjaman</span>
+        <div style="font-size: 0.85rem; margin-bottom: 4px;">Pokok Pinjaman: <strong>${formatRupiah(loan.amount)}</strong></div>
+        <div style="font-size: 0.85rem; margin-bottom: 4px;">Jangka Waktu: <strong>${loan.tenorMonths} Bulan</strong></div>
+        <div style="font-size: 0.85rem; margin-bottom: 4px; color: #bf5ae8;">Suku Bunga Karyawan: <strong>1.0% / bulan flat</strong></div>
+        <div style="font-size: 0.85rem;">Total Bunga: <strong>+${formatRupiah(loan.totalInterest)}</strong></div>
+      </div>
+    </div>
+
+    <div style="background: var(--primary-subtle); border: 1px solid var(--primary); border-radius: var(--radius-md); padding: 14px; margin-bottom: 16px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <span style="font-size: 0.8rem; font-weight: 700; color: #ffffff;">METODE PELUNASAN:</span>
+        <span class="status-tag ${loan.paymentMethod === 'PAYROLL_DEDUCTION' ? 'payroll' : 'direct'}">
+          ${loan.paymentMethod === 'PAYROLL_DEDUCTION' ? 'Potong Gaji Otomatis (Tgl 28)' : 'Cicilan Mandiri (VA/QRIS)'}
+        </span>
+      </div>
+      <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 8px;">
+        ${loan.paymentMethod === 'PAYROLL_DEDUCTION'
+          ? 'Cicilan sebesar <strong>' + formatRupiah(loan.monthlyInstallment) + '</strong> akan dipotong otomatis langsung pada slip gaji tanggal 28 selama ' + loan.tenorMonths + ' bulan.'
+          : 'Karyawan membayar cicilan sebesar <strong>' + formatRupiah(loan.monthlyInstallment) + '</strong> secara mandiri via transfer/QRIS.'}
+      </p>
+      <div style="display: flex; justify-content: space-between; border-top: 1px solid var(--border-subtle); padding-top: 8px;">
+        <span style="font-size: 0.88rem; font-weight: 600;">Total Pengembalian: ${formatRupiah(loan.totalRepayment)}</span>
+        <span style="font-size: 0.94rem; font-weight: 700; color: var(--success);">Cicilan: ${formatRupiah(loan.monthlyInstallment)}/bln</span>
+      </div>
+    </div>
+
+    <div style="background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 14px;">
+      <span style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 4px;">Alasan Pengajuan Mendesak:</span>
+      <div style="font-size: 0.86rem; font-weight: 600; color: #ffffff; margin-bottom: 2px;">${escapeHtml(loan.reasonCategory)}</div>
+      <div style="font-size: 0.82rem; color: var(--text-muted); font-style: italic;">"${escapeHtml(loan.notes)}"</div>
+    </div>
+  `;
+
+  document.getElementById('reviewLoanModal').classList.add('show');
+}
+
+function triggerRejectFromReview() {
+  closeModal('reviewLoanModal');
+  openLoanRejectModal(activeLoanInReviewId);
+}
+
+function handleApproveLoan() {
+  if (!activeLoanInReviewId) return;
+  const loan = allLoans.find(l => l.id === activeLoanInReviewId);
+  if (!loan) return;
+
+  loan.status = 'APPROVED';
+  loan.approvedDate = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' WIB';
+
+  saveStoredLoans(allLoans);
+  closeModal('reviewLoanModal');
+  showToast(`Pinjaman ${loan.id} untuk ${loan.employeeName} senilai ${formatRupiah(loan.amount)} berhasil disetujui & dicairkan!`, 'success');
+}
+
+function openLoanRejectModal(loanId) {
+  activeLoanInReviewId = loanId;
+  const inputEl = document.getElementById('loanRejectReasonInput');
+  if (inputEl) inputEl.value = '';
+  document.getElementById('rejectLoanModal').classList.add('show');
+}
+
+function setRejectReason(reasonText) {
+  const inputEl = document.getElementById('loanRejectReasonInput');
+  if (inputEl) inputEl.value = reasonText;
+}
+
+function handleConfirmRejectLoan() {
+  if (!activeLoanInReviewId) return;
+  const loan = allLoans.find(l => l.id === activeLoanInReviewId);
+  if (!loan) return;
+
+  const reason = (document.getElementById('loanRejectReasonInput')?.value || '').trim() || 'Tidak memenuhi kualifikasi persetujuan pinjaman saat ini.';
+  loan.status = 'REJECTED';
+  loan.rejectionReason = reason;
+
+  saveStoredLoans(allLoans);
+  closeModal('rejectLoanModal');
+  showToast(`Pinjaman ${loan.id} ditolak dengan alasan: ${reason}`, 'error');
+}
+
+function openLoanSlipModal(loanId) {
+  const loan = allLoans.find(l => l.id === loanId);
+  if (!loan) return;
+
+  const area = document.getElementById('slipLoanPrintableArea');
+  if (!area) return;
+
+  area.innerHTML = `
+    <div style="border: 2px solid #CBD5E1; padding: 24px; border-radius: 8px; background: #ffffff; color: #0F172A;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #7C2DB8; padding-bottom: 14px; margin-bottom: 16px;">
+        <div>
+          <h2 style="font-size: 18px; font-weight: 800; color: #7C2DB8; margin: 0;">PT MEGA FINANSIAL NUSANTARA</h2>
+          <p style="font-size: 11px; color: #64748B; margin: 2px 0 0;">Divisi HR & People Operations • Cashper Platform</p>
+        </div>
+        <div style="text-align: right;">
+          <span style="font-size: 10px; font-weight: 700; color: #7C2DB8; background: #F3E8FF; padding: 3px 8px; border-radius: 4px;">BUKTI PERSETUJUAN PINJAMAN</span>
+          <p style="font-size: 12px; font-weight: 700; color: #0F172A; margin: 4px 0 0;">No: ${loan.id}/HRD/2026</p>
+        </div>
+      </div>
+
+      <div style="font-size: 12px; margin-bottom: 16px;">
+        <p style="margin: 0 0 8px; color: #475569;">Fasilitas pinjaman resmi perusahaan telah disetujui kepada:</p>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+          <tr>
+            <td style="width: 160px; padding: 4px 0; color: #64748B;">Nama Karyawan</td>
+            <td style="padding: 4px 0; font-weight: 700; color: #0F172A;">: ${escapeHtml(loan.employeeName)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 0; color: #64748B;">Jabatan / Divisi</td>
+            <td style="padding: 4px 0; font-weight: 700; color: #0F172A;">: ${escapeHtml(loan.employeeRole)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 0; color: #64748B;">Gaji Pokok</td>
+            <td style="padding: 4px 0; font-weight: 700; color: #0F172A;">: ${formatRupiah(loan.baseSalary || 4000000)}</td>
+          </tr>
+        </table>
+      </div>
+
+      <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 12px; margin-bottom: 16px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+          <tr>
+            <td style="padding: 4px 0; color: #475569;">Pokok Pinjaman</td>
+            <td style="padding: 4px 0; text-align: right; font-weight: 700; color: #0F172A;">${formatRupiah(loan.amount)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 0; color: #475569;">Bunga Standar Karyawan</td>
+            <td style="padding: 4px 0; text-align: right; font-weight: 600; color: #7C2DB8;">1.0% / bulan flat (${loan.tenorMonths} bulan = ${formatRupiah(loan.totalInterest)})</td>
+          </tr>
+          <tr style="border-top: 1px solid #E2E8F0;">
+            <td style="padding: 6px 0; font-weight: 700; color: #0F172A;">Total Pengembalian</td>
+            <td style="padding: 6px 0; text-align: right; font-weight: 800; color: #7C2DB8; font-size: 13px;">${formatRupiah(loan.totalRepayment)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 0; color: #475569;">Cicilan per Bulan</td>
+            <td style="padding: 4px 0; text-align: right; font-weight: 800; color: #10B981; font-size: 13px;">${formatRupiah(loan.monthlyInstallment)} / bulan</td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 0; color: #475569;">Skema Pelunasan</td>
+            <td style="padding: 4px 0; text-align: right; font-weight: 700; color: #2563EB;">
+              ${loan.paymentMethod === 'PAYROLL_DEDUCTION' ? 'Potong Gaji Otomatis (Tgl 28)' : 'Cicilan Mandiri (VA/QRIS)'}
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; margin-top: 28px; text-align: center; font-size: 11px;">
+        <div style="width: 180px;">
+          <p style="color: #64748B; margin: 0 0 40px;">Penerima Fasilitas,</p>
+          <strong style="color: #0F172A; text-decoration: underline;">${escapeHtml(loan.employeeName)}</strong>
+          <p style="color: #94A3B8; margin: 2px 0 0;">Karyawan</p>
+        </div>
+
+        <div style="width: 180px;">
+          <p style="color: #64748B; margin: 0 0 40px;">Disetujui Oleh HRD,</p>
+          <strong style="color: #0F172A; text-decoration: underline;">Ratna Dewi, S.Psi</strong>
+          <p style="color: #94A3B8; margin: 2px 0 0;">Head of HR & People Ops</p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('slipLoanModal').classList.add('show');
+}
+
+function simulateNewLoanIncoming() {
+  const dummyEmployees = [
+    { name: "Dewi Kartika", role: "Digital Marketing Specialist", amount: 1200000, tenor: 2, cat: "Biaya Pendidikan Anak" },
+    { name: "Ahmad Dahlan", role: "Staff Gudang & Ekspedisi", amount: 800000, tenor: 1, cat: "Kebutuhan Mendesak Awal Bulan" },
+    { name: "Fajar Nugraha", role: "Quality Assurance", amount: 1500000, tenor: 3, cat: "Perbaikan Kendaraan Kerja" }
+  ];
+  const chosen = dummyEmployees[Math.floor(Math.random() * dummyEmployees.length)];
+  const interest = Math.round(chosen.amount * 0.01 * chosen.tenor);
+  const total = chosen.amount + interest;
+  const installment = Math.round(total / chosen.tenor);
+
+  const nowFormatted = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' WIB';
+
+  const newLoan = {
+    id: "LOAN-" + Math.floor(1000 + Math.random() * 9000),
+    employeeName: chosen.name,
+    employeeRole: chosen.role,
+    baseSalary: 4000000,
+    amount: chosen.amount,
+    tenorMonths: chosen.tenor,
+    interestRateMonthly: 0.01,
+    totalInterest: interest,
+    totalRepayment: total,
+    monthlyInstallment: installment,
+    reasonCategory: chosen.cat,
+    notes: "Pengajuan pinjaman masuk melalui aplikasi karyawan Cashper.",
+    status: "PENDING",
+    appliedDate: nowFormatted,
+    approvedDate: null,
+    rejectionReason: null,
+    paymentMethod: "PAYROLL_DEDUCTION",
+    remainingBalance: total
+  };
+
+  allLoans.unshift(newLoan);
+  saveStoredLoans(allLoans);
+  showToast(`Pengajuan baru masuk: ${chosen.name} - ${formatRupiah(chosen.amount)} (${chosen.tenor} bln)!`, 'success');
+}
+

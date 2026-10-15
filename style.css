@@ -1267,3 +1267,63 @@ body {
     min-width: unset;
   }
 }
+
+/* ===================================================================
+   Pinjaman Karyawan Styles
+   =================================================================== */
+.nav-badge-pill {
+  margin-left: auto;
+  background-color: var(--warning);
+  color: #0e0717;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+}
+
+.btn-filter {
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.btn-filter.active {
+  background-color: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+
+.status-tag.rejected {
+  background-color: var(--danger-subtle);
+  color: var(--danger);
+}
+
+.status-tag.payroll {
+  background-color: var(--primary-subtle);
+  color: #bf5ae8;
+}
+
+.status-tag.direct {
+  background-color: var(--info-subtle);
+  color: var(--info);
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #slipLoanPrintableArea, #slipLoanPrintableArea * {
+    visibility: visible;
+  }
+  #slipLoanPrintableArea {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 20px;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+}
