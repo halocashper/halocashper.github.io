@@ -32,6 +32,15 @@ function initSupabase() {
   try {
     const cleanUrl = DEFAULT_CONFIG.url.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
     supabaseClient = window.supabase.createClient(cleanUrl, DEFAULT_CONFIG.anonKey);
+    // Realtime listener jika ada pengajuan pinjaman baru dari aplikasi mobile
+    try {
+      supabaseClient
+        .channel('company_loans_realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'company_loans' }, () => {
+          loadLoans();
+        })
+        .subscribe();
+    } catch (_) {}
   } catch (err) {
     console.error('Supabase initialization failed:', err);
     showToast('Gagal memuat client Supabase', 'error');
@@ -1278,84 +1287,51 @@ async function deleteEdukasiVideo(videoId, storagePath, thumbUrl) {
 // -------------------------------------------------------------------
 const STORAGE_KEY_LOANS = 'cashper_hr_loans_db';
 
-const INITIAL_WEB_LOANS = [
-  {
-    id: "LOAN-1001",
-    employeeName: "Surya",
-    employeeRole: "Staff Operasional",
-    baseSalary: 4000000,
-    amount: 1000000,
-    tenorMonths: 2,
-    interestRateMonthly: 0.01,
-    totalInterest: 20000,
-    totalRepayment: 1020000,
-    monthlyInstallment: 510000,
-    reasonCategory: "Kebutuhan Mendesak Awal Bulan",
-    notes: "Keperluan darurat keluarga sebelum tanggal gajian tiba.",
-    status: "PENDING",
-    appliedDate: "15 Okt 2026, 14:20 WIB",
-    approvedDate: null,
-    rejectionReason: null,
-    paymentMethod: "PAYROLL_DEDUCTION",
-    remainingBalance: 1020000
-  },
-  {
-    id: "LOAN-0942",
-    employeeName: "Budi Santoso",
-    employeeRole: "Logistik & Gudang",
-    baseSalary: 4000000,
-    amount: 1000000,
-    tenorMonths: 1,
-    interestRateMonthly: 0.01,
-    totalInterest: 10000,
-    totalRepayment: 1010000,
-    monthlyInstallment: 1010000,
-    reasonCategory: "Perbaikan Kendaraan Kerja",
-    notes: "Ganti ban & servis motor operasional.",
-    status: "APPROVED",
-    appliedDate: "05 Okt 2026, 10:15 WIB",
-    approvedDate: "05 Okt 2026, 14:30 WIB",
-    rejectionReason: null,
-    paymentMethod: "PAYROLL_DEDUCTION",
-    remainingBalance: 1010000
-  },
-  {
-    id: "LOAN-0870",
-    employeeName: "Rina Melati",
-    employeeRole: "Customer Support",
-    baseSalary: 4000000,
-    amount: 2000000,
-    tenorMonths: 2,
-    interestRateMonthly: 0.01,
-    totalInterest: 40000,
-    totalRepayment: 2040000,
-    monthlyInstallment: 1020000,
-    reasonCategory: "Biaya Pendidikan",
-    notes: "Daftar ulang semester sekolah anak.",
-    status: "PAID_OFF",
-    appliedDate: "10 Sep 2026, 08:30 WIB",
-    approvedDate: "10 Sep 2026, 11:20 WIB",
-    rejectionReason: null,
-    paymentMethod: "DIRECT_TRANSFER",
-    remainingBalance: 0
-  }
-];
+const INITIAL_WEB_LOANS = [];
 
 let allLoans = [];
 let currentLoanFilterStatus = 'ALL';
 let activeLoanInReviewId = null;
 
+function mapSupabaseLoanToModel(row) {
+  return {
+    id: row.id,
+    employeeName: row.employee_name || 'Surya',
+    employeeRole: row.employee_role || 'Staff Operasional',
+    baseSalary: Number(row.base_salary || 4000000),
+    amount: Number(row.amount || 0),
+    tenorMonths: Number(row.tenor_months || 1),
+    interestRateMonthly: Number(row.interest_rate_monthly || 0.01),
+    totalInterest: Number(row.total_interest || 0),
+    totalRepayment: Number(row.total_repayment || 0),
+    monthlyInstallment: Number(row.monthly_installment || 0),
+    reasonCategory: row.reason_category || 'Kebutuhan Mendesak Awal Bulan',
+    notes: row.notes || '-',
+    status: row.status || 'PENDING',
+    appliedDate: row.applied_date || '-',
+    approvedDate: row.approved_date || null,
+    rejectionReason: row.rejection_reason || null,
+    paymentMethod: row.payment_method || 'PAYROLL_DEDUCTION',
+    remainingBalance: Number(row.remaining_balance || 0)
+  };
+}
+
 function getStoredLoans() {
   const saved = localStorage.getItem(STORAGE_KEY_LOANS);
   if (saved) {
     try {
-      return JSON.parse(saved);
+      const parsed = JSON.parse(saved);
+      // Bersihkan data dummy lama (LOAN-1001, LOAN-0942, LOAN-0870) jika masih tersimpan di browser
+      const cleaned = parsed.filter(l => l.id !== 'LOAN-1001' && l.id !== 'LOAN-0942' && l.id !== 'LOAN-0870');
+      if (cleaned.length !== parsed.length) {
+        localStorage.setItem(STORAGE_KEY_LOANS, JSON.stringify(cleaned));
+      }
+      return cleaned;
     } catch (e) {
-      return [...INITIAL_WEB_LOANS];
+      return [];
     }
   }
-  localStorage.setItem(STORAGE_KEY_LOANS, JSON.stringify(INITIAL_WEB_LOANS));
-  return [...INITIAL_WEB_LOANS];
+  return [];
 }
 
 function saveStoredLoans(data) {
@@ -1412,10 +1388,36 @@ function updateLoanStatsAndBadges() {
   }
 }
 
-function loadLoans() {
+async function loadLoans(showFeedback = false) {
+  if (supabaseClient) {
+    try {
+      const { data, error } = await supabaseClient
+        .from('company_loans')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && Array.isArray(data)) {
+        allLoans = data.map(mapSupabaseLoanToModel);
+        localStorage.setItem(STORAGE_KEY_LOANS, JSON.stringify(allLoans));
+        updateLoanStatsAndBadges();
+        renderLoansTable(getFilteredLoans());
+        loadLoansOverview();
+        if (showFeedback) showToast('Data pengajuan pinjaman berhasil diperbarui dari Supabase!', 'success');
+        return;
+      } else if (error && showFeedback) {
+        console.warn('Supabase company_loans error:', error);
+        showToast('Tabel company_loans belum ada di Supabase. Jalankan script supabase/company_loans.sql di SQL Editor.', 'error');
+      }
+    } catch (e) {
+      console.warn('Gagal memuat pinjaman dari Supabase:', e);
+      if (showFeedback) showToast('Gagal memuat: ' + e.message, 'error');
+    }
+  }
+
   allLoans = getStoredLoans();
   updateLoanStatsAndBadges();
   renderLoansTable(getFilteredLoans());
+  loadLoansOverview();
 }
 
 function getFilteredLoans() {
@@ -1644,16 +1646,32 @@ function triggerRejectFromReview() {
   openLoanRejectModal(activeLoanInReviewId);
 }
 
-function handleApproveLoan() {
+async function handleApproveLoan() {
   if (!activeLoanInReviewId) return;
   const loan = allLoans.find(l => l.id === activeLoanInReviewId);
   if (!loan) return;
 
+  const approvedDate = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' WIB';
   loan.status = 'APPROVED';
-  loan.approvedDate = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' WIB';
+  loan.approvedDate = approvedDate;
 
   saveStoredLoans(allLoans);
   closeModal('reviewLoanModal');
+
+  if (supabaseClient) {
+    try {
+      await supabaseClient
+        .from('company_loans')
+        .update({
+          status: 'APPROVED',
+          approved_date: approvedDate
+        })
+        .eq('id', loan.id);
+    } catch (e) {
+      console.warn('Gagal update approve di Supabase:', e);
+    }
+  }
+
   showToast(`Pinjaman ${loan.id} untuk ${loan.employeeName} senilai ${formatRupiah(loan.amount)} berhasil disetujui & dicairkan!`, 'success');
 }
 
@@ -1669,7 +1687,7 @@ function setRejectReason(reasonText) {
   if (inputEl) inputEl.value = reasonText;
 }
 
-function handleConfirmRejectLoan() {
+async function handleConfirmRejectLoan() {
   if (!activeLoanInReviewId) return;
   const loan = allLoans.find(l => l.id === activeLoanInReviewId);
   if (!loan) return;
@@ -1680,6 +1698,21 @@ function handleConfirmRejectLoan() {
 
   saveStoredLoans(allLoans);
   closeModal('rejectLoanModal');
+
+  if (supabaseClient) {
+    try {
+      await supabaseClient
+        .from('company_loans')
+        .update({
+          status: 'REJECTED',
+          rejection_reason: reason
+        })
+        .eq('id', loan.id);
+    } catch (e) {
+      console.warn('Gagal update reject di Supabase:', e);
+    }
+  }
+
   showToast(`Pinjaman ${loan.id} ditolak dengan alasan: ${reason}`, 'error');
 }
 

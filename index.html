@@ -478,11 +478,11 @@
 
               <!-- Filter tabs -->
               <div class="filter-group" style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <button class="btn btn-sm btn-filter active" id="filterLoanAll" onclick="setLoanStatusFilter('ALL')">Semua (<span id="countLoanAll">3</span>)</button>
-                <button class="btn btn-sm btn-filter" id="filterLoanPending" onclick="setLoanStatusFilter('PENDING')">Perlu Review (<span id="countLoanPending">1</span>)</button>
-                <button class="btn btn-sm btn-filter" id="filterLoanApproved" onclick="setLoanStatusFilter('APPROVED')">Disetujui (<span id="countLoanApproved">1</span>)</button>
+                <button class="btn btn-sm btn-filter active" id="filterLoanAll" onclick="setLoanStatusFilter('ALL')">Semua (<span id="countLoanAll">0</span>)</button>
+                <button class="btn btn-sm btn-filter" id="filterLoanPending" onclick="setLoanStatusFilter('PENDING')">Perlu Review (<span id="countLoanPending">0</span>)</button>
+                <button class="btn btn-sm btn-filter" id="filterLoanApproved" onclick="setLoanStatusFilter('APPROVED')">Disetujui (<span id="countLoanApproved">0</span>)</button>
                 <button class="btn btn-sm btn-filter" id="filterLoanRejected" onclick="setLoanStatusFilter('REJECTED')">Ditolak (<span id="countLoanRejected">0</span>)</button>
-                <button class="btn btn-sm btn-filter" id="filterLoanPaid" onclick="setLoanStatusFilter('PAID_OFF')">Lunas (<span id="countLoanPaid">1</span>)</button>
+                <button class="btn btn-sm btn-filter" id="filterLoanPaid" onclick="setLoanStatusFilter('PAID_OFF')">Lunas (<span id="countLoanPaid">0</span>)</button>
               </div>
 
               <div class="toolbar-actions" style="display: flex; gap: 10px; align-items: center;">
@@ -491,9 +491,9 @@
                   <option value="PAYROLL_DEDUCTION">Potong Gaji Otomatis</option>
                   <option value="DIRECT_TRANSFER">Cicilan Mandiri</option>
                 </select>
-                <button class="btn btn-primary btn-sm" onclick="simulateNewLoanIncoming()">
-                  <span class="material-symbols-rounded">add</span>
-                  <span>+ Simulasi Masuk</span>
+                <button class="btn btn-secondary btn-sm" onclick="loadLoans(true)">
+                  <span class="material-symbols-rounded">sync</span>
+                  <span>Refresh Data</span>
                 </button>
               </div>
             </div>
