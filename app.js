@@ -1839,3 +1839,27 @@ function simulateNewLoanIncoming() {
   showToast(`Pengajuan baru masuk: ${chosen.name} - ${formatRupiah(chosen.amount)} (${chosen.tenor} bln)!`, 'success');
 }
 
+async function clearAllLoans() {
+  if (!confirm('Apakah Anda yakin ingin MENGHAPUS SEMUA riwayat pengajuan & transaksi pinjaman karyawan di seluruh akun agar data kembali bersih (reset nol)?')) {
+    return;
+  }
+  try {
+    if (supabaseClient) {
+      const { error: delErr } = await supabaseClient
+        .from('company_loans')
+        .delete()
+        .neq('id', 'NON_EXISTENT_ID');
+      if (delErr) {
+        console.warn('Gagal hapus pinjaman di Supabase:', delErr);
+      }
+    }
+    allLoans = [];
+    saveStoredLoans(allLoans);
+    renderLoans();
+    renderPendingLoansOverview();
+    updateLoanStats();
+    showToast('Semua transaksi pinjaman karyawan berhasil dibersihkan! Limit pinjaman kembali penuh.', 'success');
+  } catch (err) {
+    showToast('Gagal membersihkan data pinjaman: ' + err.message, 'error');
+  }
+}
