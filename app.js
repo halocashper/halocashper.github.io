@@ -332,6 +332,10 @@ function renderEmployeesTable(list) {
               <span class="material-symbols-rounded" style="font-size: 16px;">edit</span>
               <span>Edit</span>
             </button>
+            <button class="btn btn-secondary btn-sm" onclick="openResetPasswordModal('${escapeHtml(emp.email)}', '${escapeHtml(emp.full_name)}')" title="Reset / Ubah Kata Sandi Karyawan" style="color: #6366f1; border-color: rgba(99,102,241,0.35);">
+              <span class="material-symbols-rounded" style="font-size: 16px;">lock_reset</span>
+              <span>Sandi</span>
+            </button>
             <button class="btn btn-secondary btn-sm" onclick="toggleEmployeeStatus('${emp.id}', ${emp.is_active})" title="${toggleText}">
               <span class="material-symbols-rounded" style="font-size: 16px;">${emp.is_active ? 'power_settings_new' : 'check'}</span>
             </button>
@@ -655,6 +659,98 @@ async function handleUpdateEmployee(e) {
     btn.classList.remove('loading');
     btn.disabled = false;
     btnText.textContent = 'Simpan Perubahan';
+  }
+}
+
+// Reset Kata Sandi Karyawan (HR / Admin Cashper)
+function openResetPasswordModal(email, fullName) {
+  const form = document.getElementById('resetPasswordForm');
+  if (form) form.reset();
+  const emailInput = document.getElementById('resetEmpEmail');
+  const nameInput = document.getElementById('resetEmpFullName');
+  const passInput = document.getElementById('resetEmpNewPassword');
+  if (emailInput) emailInput.value = email || '';
+  if (nameInput) nameInput.value = fullName || '';
+  if (passInput) {
+    passInput.type = 'password';
+    passInput.value = 'cashper123';
+  }
+  const modal = document.getElementById('resetPasswordModal');
+  if (modal) modal.classList.add('show');
+}
+
+function setQuickDefaultPassword(val) {
+  const passInput = document.getElementById('resetEmpNewPassword');
+  if (passInput) passInput.value = val;
+}
+
+function generateRandomEmpPassword() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$';
+  let pass = '';
+  for (let i = 0; i < 8; i++) {
+    pass += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  const passInput = document.getElementById('resetEmpNewPassword');
+  if (passInput) {
+    passInput.type = 'text';
+    passInput.value = pass;
+  }
+}
+
+function togglePasswordVisibility(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const isPass = input.type === 'password';
+  input.type = isPass ? 'text' : 'password';
+  const icon = btn.querySelector('.material-symbols-rounded');
+  if (icon) {
+    icon.textContent = isPass ? 'visibility_off' : 'visibility';
+  }
+}
+
+async function handleResetEmployeePassword(e) {
+  e.preventDefault();
+  const email = (document.getElementById('resetEmpEmail')?.value || '').trim();
+  const fullName = (document.getElementById('resetEmpFullName')?.value || '').trim();
+  const newPassword = document.getElementById('resetEmpNewPassword')?.value || '';
+  const btn = document.getElementById('btnSubmitResetPass');
+  const btnText = document.getElementById('textSubmitResetPass');
+  const spinner = document.getElementById('spinnerResetPass');
+
+  if (!email) {
+    showToast('Email karyawan tidak valid', 'error');
+    return;
+  }
+
+  if (!newPassword || newPassword.length < 6) {
+    showToast('Kata sandi baru minimal 6 karakter', 'error');
+    return;
+  }
+
+  try {
+    if (btn) btn.disabled = true;
+    if (spinner) spinner.style.display = 'inline-block';
+    if (btnText) btnText.textContent = 'Menyimpan...';
+
+    // 1. Eksekusi RPC admin_reset_employee_password
+    const { data, error } = await supabaseClient.rpc('admin_reset_employee_password', {
+      p_email: email,
+      p_new_password: newPassword
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    showToast(`Kata sandi untuk ${fullName || email} berhasil diubah!`, 'success');
+    closeModal('resetPasswordModal');
+  } catch (err) {
+    console.error('Reset password error:', err);
+    showToast('Gagal mengubah kata sandi: ' + (err.message || err), 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+    if (spinner) spinner.style.display = 'none';
+    if (btnText) btnText.textContent = 'Simpan Kata Sandi Baru';
   }
 }
 

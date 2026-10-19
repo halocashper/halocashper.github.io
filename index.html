@@ -1048,6 +1048,67 @@
     </div>
   </div>
 
+  <!-- MODAL: RESET KATA SANDI KARYAWAN (HR / ADMIN) -->
+  <div class="modal-backdrop" id="resetPasswordModal">
+    <div class="modal-dialog" style="max-width: 480px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="material-symbols-rounded text-purple">lock_reset</span>
+          <h3>Reset Kata Sandi Karyawan</h3>
+        </div>
+        <button class="btn-close" onclick="closeModal('resetPasswordModal')">
+          <span class="material-symbols-rounded">close</span>
+        </button>
+      </div>
+
+      <form id="resetPasswordForm" onsubmit="handleResetEmployeePassword(event)">
+        <div class="modal-body">
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
+            Gunakan fitur ini apabila karyawan lupa kata sandi akunnya. Kata sandi baru akan langsung aktif terintegrasi ke Supabase Auth sehingga karyawan dapat langsung login di aplikasi Cashper.
+          </p>
+
+          <div class="form-grid">
+            <div class="form-group full-width">
+              <label>Nama Karyawan</label>
+              <input type="text" id="resetEmpFullName" readonly style="opacity: 0.85; background: var(--bg-hover); cursor: not-allowed;">
+            </div>
+
+            <div class="form-group full-width">
+              <label>Email Karyawan</label>
+              <input type="email" id="resetEmpEmail" readonly style="opacity: 0.85; background: var(--bg-hover); cursor: not-allowed;">
+            </div>
+
+            <div class="form-group full-width">
+              <label>Kata Sandi Baru <span class="required">*</span></label>
+              <div style="position: relative;">
+                <input type="password" id="resetEmpNewPassword" required minlength="6" placeholder="Minimal 6 karakter" style="width: 100%; padding-right: 42px;">
+                <button type="button" onclick="togglePasswordVisibility('resetEmpNewPassword', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center;">
+                  <span class="material-symbols-rounded" style="font-size: 18px;">visibility</span>
+                </button>
+              </div>
+              <div style="display: flex; gap: 8px; margin-top: 8px;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="setQuickDefaultPassword('cashper123')" style="font-size: 0.75rem; padding: 4px 10px;">
+                  Set: cashper123
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="generateRandomEmpPassword()" style="font-size: 0.75rem; padding: 4px 10px;">
+                  Acak Sandi
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('resetPasswordModal')">Batal</button>
+          <button type="submit" class="btn btn-primary" id="btnSubmitResetPass">
+            <span class="btn-spinner" id="spinnerResetPass"></span>
+            <span id="textSubmitResetPass">Simpan Kata Sandi Baru</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Toast Notification -->
   <div class="toast-container" id="toastContainer"></div>
 
