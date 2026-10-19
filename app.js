@@ -216,7 +216,7 @@ async function loadEmployees() {
       // Fallback: Direct select on employees table
       const { data, error } = await supabaseClient
         .from('employees')
-        .select('id, full_name, email, company, bank_name, bank_account_number, payday_day, is_active, created_at, role_id, roles(name, base_salary)')
+        .select('id, full_name, email, company, company_code, bank_name, bank_account_number, payday_day, is_active, created_at, role_id, roles(name, base_salary)')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -225,6 +225,7 @@ async function loadEmployees() {
         full_name: e.full_name,
         email: e.email || '-',
         company: e.company || 'Cashper',
+        company_code: e.company_code || 'C-191026',
         role_id: e.role_id,
         role_name: e.roles?.name || (e.role_id === 1 ? 'Staff Operasional' : e.role_id === 2 ? 'Supervisor' : 'Manager'),
         base_salary: e.roles?.base_salary || (e.role_id === 1 ? 4000000 : e.role_id === 2 ? 7000000 : 12000000),
@@ -298,6 +299,10 @@ function renderEmployeesTable(list) {
     const companyBadge = isCompanyAccount ? '<span style="font-size:10px; background:#29153f; color:#bf5ae8; padding:2px 6px; border-radius:4px; display:inline-block; margin-top:2px;">Akun HR Perusahaan</span>' : '';
 
     const companyDisplay = isCompanyAccount ? 'Cashper' : escapeHtml(emp.company || '-');
+    const compCode = isCompanyAccount ? 'C-191026' : (emp.company_code || 'C-191026');
+    const companyCodeBadge = `<div class="emp-sub" style="font-family: monospace; font-size: 0.73rem; color: #a78bfa; font-weight: 600; letter-spacing: 0.5px; margin-top: 2px;">
+      <span class="material-symbols-rounded" style="font-size: 13px; vertical-align: middle;">tag</span> ${escapeHtml(compCode)}
+    </div>`;
     const bankDisplay = isCompanyAccount ? 'BRI' : escapeHtml(emp.bank_name || 'BRI');
     const paydayDisplay = isCompanyAccount ? '<span style="color:var(--text-muted);">-</span>' : `Tgl ${emp.payday_day || 28}`;
 
@@ -319,7 +324,10 @@ function renderEmployeesTable(list) {
           <div>${escapeHtml(emp.role_name || 'Staff')}</div>
           ${salaryDisplay}
         </td>
-        <td>${companyDisplay}</td>
+        <td>
+          <div style="font-weight: 600; color: #f1f5f9;">${companyDisplay}</div>
+          ${companyCodeBadge}
+        </td>
         <td>
           <div><strong>${bankDisplay}</strong></div>
           <div class="emp-sub" style="font-family: monospace; letter-spacing: 0.5px; font-weight: 500; color: #ffffff;">${accNumber}</div>
@@ -589,6 +597,8 @@ function openEditModalById(empId) {
   document.getElementById('editEmail').value = emp.email || '';
   document.getElementById('editRole').value = emp.role_id || 1;
   document.getElementById('editCompany').value = emp.company || 'Cashper';
+  const compCodeInput = document.getElementById('editCompanyCode');
+  if (compCodeInput) compCodeInput.value = emp.company_code || 'C-191026';
   document.getElementById('editBank').value = emp.bank_name || 'BRI';
   document.getElementById('editAccount').value = emp.bank_account_number || '';
   document.getElementById('editPayday').value = emp.payday_day || 28;
