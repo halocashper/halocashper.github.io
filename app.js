@@ -1512,7 +1512,7 @@ function renderEdukasiGrid(list) {
         <div class="video-card-body">
           <div class="video-card-title">${escapeHtml(v.judul)}</div>
           
-          <div class="video-card-subinfo">Cashper Edukasi â€¢ Keuangan</div>
+          <div class="video-card-subinfo">Cashper Edukasi &bull; Keuangan</div>
 
           <div class="video-channel-row">
             <div class="video-channel-avatar">C</div>
