@@ -160,9 +160,7 @@ function renderEmployeesTable(list) {
   }
 
   tbody.innerHTML = list.map(emp => {
-    const maskedAcc = emp.bank_account_number
-      ? emp.bank_account_number.slice(0, 3) + 'â€¢â€¢â€¢â€¢' + emp.bank_account_number.slice(-3)
-      : '-';
+    const accNumber = emp.bank_account_number ? escapeHtml(emp.bank_account_number) : '-';
 
     const statusBadge = emp.is_active
       ? '<span class="status-tag active"><span class="material-symbols-rounded" style="font-size:14px;">check_circle</span> Aktif</span>'
@@ -172,6 +170,13 @@ function renderEmployeesTable(list) {
     const isCompanyAccount = emp.email && emp.email.toLowerCase() === 'halo.cashper@gmail.com';
     const salaryDisplay = isCompanyAccount ? '<span class="emp-sub">Non-EWA (HR Perusahaan)</span>' : `<div class="emp-salary">${formatRupiah(emp.base_salary)}</div>`;
     const companyBadge = isCompanyAccount ? '<span style="font-size:10px; background:#29153f; color:#bf5ae8; padding:2px 6px; border-radius:4px; display:inline-block; margin-top:2px;">Akun HR Perusahaan</span>' : '';
+
+    const deleteBtn = isCompanyAccount
+      ? ''
+      : `<button class="btn btn-danger btn-sm" onclick="deleteEmployee('${emp.id}', '${escapeHtml(emp.full_name)}')" title="Hapus Karyawan Permanen">
+           <span class="material-symbols-rounded" style="font-size: 16px;">delete</span>
+           <span>Hapus</span>
+         </button>`;
 
     return `
       <tr>
@@ -184,10 +189,10 @@ function renderEmployeesTable(list) {
           <div>${escapeHtml(emp.role_name || 'Staff')}</div>
           ${salaryDisplay}
         </td>
-        <td>${escapeHtml(emp.company || 'Cashper')}</td>
+        <td>${escapeHtml(emp.company || '-')}</td>
         <td>
-          <div><strong>${escapeHtml(emp.bank_name || '-')}</strong></div>
-          <div class="emp-sub">${maskedAcc}</div>
+          <div><strong>${escapeHtml(emp.bank_name || 'BRI')}</strong></div>
+          <div class="emp-sub" style="font-family: monospace; letter-spacing: 0.5px; font-weight: 500; color: #ffffff;">${accNumber}</div>
         </td>
         <td>Tgl ${emp.payday_day || 28}</td>
         <td>${statusBadge}</td>
@@ -200,11 +205,52 @@ function renderEmployeesTable(list) {
             <button class="btn btn-secondary btn-sm" onclick="toggleEmployeeStatus('${emp.id}', ${emp.is_active})" title="${toggleText}">
               <span class="material-symbols-rounded" style="font-size: 16px;">${emp.is_active ? 'power_settings_new' : 'check'}</span>
             </button>
+            ${deleteBtn}
           </div>
         </td>
       </tr>
     `;
   }).join('');
+}
+
+// Hapus User / Karyawan Permanen dari Dashboard Web
+async function deleteEmployee(empId, empName) {
+  if (!confirm(`Apakah Anda yakin ingin MENGHAPUS karyawan "${empName}" secara permanen dari sistem?\n\nSemua riwayat transaksi EWA dan akun login karyawan ini akan dibersihkan dari database.`)) {
+    return;
+  }
+
+  try {
+    // 1. Coba panggil RPC admin_delete_employee (agar auth.users dan tabel terkait terhapus)
+    const { error: rpcError } = await supabaseClient.rpc('admin_delete_employee', {
+      p_employee_id: empId
+    });
+
+    if (rpcError) {
+      console.warn('RPC admin_delete_employee gagal/belum terpasang di Supabase, menjalankan direct delete fallback:', rpcError);
+
+      // Fallback: hapus ewa_withdrawals terlebih dahulu
+      await supabaseClient
+        .from('ewa_withdrawals')
+        .delete()
+        .eq('employee_id', empId);
+
+      // Kemudian hapus dari tabel employees
+      const { error: delErr } = await supabaseClient
+        .from('employees')
+        .delete()
+        .eq('id', empId);
+
+      if (delErr) throw delErr;
+    }
+
+    showToast(`Karyawan "${empName}" berhasil dihapus secara permanen!`, 'success');
+    await loadEmployees();
+    await loadWithdrawals();
+
+  } catch (err) {
+    console.error('deleteEmployee error:', err);
+    showToast('Gagal menghapus karyawan: ' + (err.message || err), 'error');
+  }
 }
 
 function filterEmployees() {
@@ -219,6 +265,7 @@ function filterEmployees() {
     (e.email || '').toLowerCase().includes(query) ||
     (e.company || '').toLowerCase().includes(query) ||
     (e.bank_name || '').toLowerCase().includes(query) ||
+    (e.bank_account_number || '').toLowerCase().includes(query) ||
     (e.role_name || '').toLowerCase().includes(query)
   );
 
@@ -230,7 +277,7 @@ function filterEmployees() {
 // -------------------------------------------------------------------
 function openAddEmployeeModal() {
   document.getElementById('addEmployeeForm').reset();
-  document.getElementById('addCompany').value = 'Cashper';
+  document.getElementById('addCompany').value = '';
   document.getElementById('addPassword').value = 'cashper123';
   document.getElementById('addBank').value = 'BRI';
   document.getElementById('addPayday').value = '28';

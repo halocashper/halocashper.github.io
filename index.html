@@ -572,7 +572,7 @@
 
             <div class="form-group">
               <label>Email <span class="required">*</span></label>
-              <input type="email" id="addEmail" placeholder="karyawan@cashper.com" required>
+              <input type="email" id="addEmail" required>
               <small class="hint">Digunakan karyawan saat login di aplikasi.</small>
             </div>
 
@@ -583,37 +583,32 @@
             </div>
 
             <div class="form-group">
-              <label>Jabatan / Role Gaji <span class="required">*</span></label>
+              <label>Jabatan / Role <span class="required">*</span></label>
               <select id="addRole" required>
-                <option value="1">Staff Operasional (Rp4.000.000)</option>
-                <option value="2">Supervisor / Admin (Rp7.000.000)</option>
-                <option value="3">Manager (Rp12.000.000)</option>
+                <option value="1">Staff Operasional</option>
+                <option value="2">Supervisor</option>
+                <option value="3">Manager</option>
               </select>
             </div>
 
             <div class="form-group">
               <label>Perusahaan <span class="required">*</span></label>
-              <input type="text" id="addCompany" value="Cashper" required>
+              <input type="text" id="addCompany" required>
             </div>
 
             <div class="form-group">
               <label>Bank Pencairan <span class="required">*</span></label>
-              <select id="addBank" required style="cursor: not-allowed; background: var(--bg-hover);">
-                <option value="BRI" selected>BRI (Bank Rakyat Indonesia)</option>
-              </select>
-              <small class="hint">Bank payroll mitra resmi perusahaan (khusus BRI).</small>
+              <input type="text" id="addBank" value="BRI" readonly style="opacity: 0.85; background: var(--bg-hover); cursor: not-allowed; font-weight: 600;">
+              <small class="hint">Bank payroll otomatis BRI.</small>
             </div>
 
-            <div class="form-group">
+            <div class="form-group full-width">
               <label>Nomor Rekening <span class="required">*</span></label>
-              <input type="text" id="addAccount" placeholder="8835124821" required>
+              <input type="text" id="addAccount" required>
             </div>
 
-            <div class="form-group">
-              <label>Tanggal Gajian</label>
-              <input type="number" id="addPayday" value="28" readonly style="opacity: 0.8; background: var(--bg-hover); cursor: not-allowed;">
-              <small class="hint">Otomatis tanggal 28 setiap bulan (fix).</small>
-            </div>
+            <!-- Tanggal Gajian fix 28 (disembunyikan dari tampilan form) -->
+            <input type="hidden" id="addPayday" value="28">
           </div>
         </div>
 
@@ -659,9 +654,9 @@
             <div class="form-group">
               <label>Jabatan / Role <span class="required">*</span></label>
               <select id="editRole" required>
-                <option value="1">Staff Operasional (Rp4.000.000)</option>
-                <option value="2">Supervisor / Admin (Rp7.000.000)</option>
-                <option value="3">Manager (Rp12.000.000)</option>
+                <option value="1">Staff Operasional</option>
+                <option value="2">Supervisor</option>
+                <option value="3">Manager</option>
               </select>
             </div>
 
@@ -672,22 +667,17 @@
 
             <div class="form-group">
               <label>Bank Pencairan <span class="required">*</span></label>
-              <select id="editBank" required style="cursor: not-allowed; background: var(--bg-hover);">
-                <option value="BRI" selected>BRI (Bank Rakyat Indonesia)</option>
-              </select>
-              <small class="hint">Bank payroll mitra resmi perusahaan (khusus BRI).</small>
+              <input type="text" id="editBank" value="BRI" readonly style="opacity: 0.85; background: var(--bg-hover); cursor: not-allowed; font-weight: 600;">
+              <small class="hint">Bank payroll otomatis BRI.</small>
             </div>
 
-            <div class="form-group">
+            <div class="form-group full-width">
               <label>Nomor Rekening <span class="required">*</span></label>
               <input type="text" id="editAccount" required>
             </div>
 
-            <div class="form-group full-width">
-              <label>Tanggal Gajian</label>
-              <input type="number" id="editPayday" value="28" readonly style="opacity: 0.8; background: var(--bg-hover); cursor: not-allowed;">
-              <small class="hint">Otomatis tanggal 28 setiap bulan (fix).</small>
-            </div>
+            <!-- Tanggal Gajian fix 28 (disembunyikan dari tampilan form) -->
+            <input type="hidden" id="editPayday" value="28">
           </div>
         </div>
 
