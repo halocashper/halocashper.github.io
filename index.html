@@ -320,12 +320,26 @@
               <div class="toolbar-actions" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
                 <!-- Filter Periode Bulan -->
                 <div style="display: flex; align-items: center; gap: 6px;">
-                  <label for="ewaMonthFilter" style="font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">Filter Bulan:</label>
+                  <label for="ewaMonthFilter" style="font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">Bulan:</label>
                   <select id="ewaMonthFilter" class="filter-select" onchange="onEwaMonthFilterChange()">
                     <option value="current">Bulan Ini (Berjalan)</option>
                     <option value="all">Semua Riwayat (All-Time)</option>
                   </select>
                 </div>
+
+                <!-- Filter Karyawan -->
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <label for="ewaEmployeeFilter" style="font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">Karyawan:</label>
+                  <select id="ewaEmployeeFilter" class="filter-select" style="max-width: 200px;" onchange="onEwaEmployeeFilterChange()">
+                    <option value="all">Semua Karyawan</option>
+                  </select>
+                </div>
+
+                <!-- Quick Search Input -->
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <input type="text" id="ewaSearchInput" class="filter-select" placeholder="Cari nama karyawan..." oninput="onEwaSearchChange()" style="width: 150px;">
+                </div>
+
                 <button class="btn btn-secondary btn-sm" onclick="loadWithdrawals()">
                   <span class="material-symbols-rounded">refresh</span>
                   <span>Segarkan</span>
@@ -333,6 +347,37 @@
                 <button class="btn btn-danger btn-sm" onclick="clearAllWithdrawals()">
                   <span class="material-symbols-rounded">delete_sweep</span>
                   <span>Bersihkan Semua</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Banner Ringkasan Karyawan Terpilih (Kelihatan Berapa Kali Transaksi & Total Subsidi) -->
+            <div id="ewaEmployeeSummaryBanner" style="display: none; background: rgba(191, 90, 232, 0.09); border: 1px solid rgba(191, 90, 232, 0.28); border-radius: var(--radius-md); padding: 12px 18px; margin: 0 20px 16px 20px; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="width: 38px; height: 38px; border-radius: var(--radius-md); background: var(--primary-subtle); color: #bf5ae8; display: flex; align-items: center; justify-content: center;">
+                  <span class="material-symbols-rounded" style="font-size: 22px;">person</span>
+                </div>
+                <div>
+                  <div style="font-size: 0.95rem; font-weight: 700; color: #ffffff;" id="bannerEmpName">Karyawan: -</div>
+                  <div style="font-size: 0.78rem; color: var(--text-muted);" id="bannerEmpSub">Detail riwayat transaksi EWA karyawan</div>
+                </div>
+              </div>
+              <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+                <div style="text-align: right;">
+                  <span style="font-size: 0.72rem; color: var(--text-muted); display: block;">Total Frekuensi</span>
+                  <strong style="color: #bf5ae8; font-size: 1rem;" id="bannerEmpCount">0x Transaksi</strong>
+                </div>
+                <div style="text-align: right;">
+                  <span style="font-size: 0.72rem; color: var(--text-muted); display: block;">Total Dana Dicairkan</span>
+                  <strong style="color: #ffffff; font-size: 1rem;" id="bannerEmpAmount">Rp 0</strong>
+                </div>
+                <div style="text-align: right;">
+                  <span style="font-size: 0.72rem; color: var(--text-muted); display: block;">Subsidi Perusahaan (Rp 1.250/tx)</span>
+                  <strong style="color: #22c55e; font-size: 1rem;" id="bannerEmpSubsidy">Rp 0</strong>
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="resetEwaEmployeeFilter()" title="Hapus filter karyawan" style="padding: 4px 8px;">
+                  <span class="material-symbols-rounded" style="font-size: 15px;">close</span>
+                  <span>Reset Filter</span>
                 </button>
               </div>
             </div>
@@ -363,10 +408,10 @@
             <div class="panel-header table-toolbar">
               <div>
                 <div class="panel-title-group">
-                  <span class="material-symbols-rounded text-purple">history_toggle_drop_down</span>
-                  <h3 class="panel-title">Histori & Arsip Subsidi Bulanan Perusahaan</h3>
+                  <span class="material-symbols-rounded text-purple">history</span>
+                  <h3 class="panel-title" id="monthlySubsidyTitle">Histori & Arsip Subsidi Bulanan Perusahaan</h3>
                 </div>
-                <p class="section-subtitle" style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">
+                <p class="section-subtitle" id="monthlySubsidySubtitle" style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">
                   Rekap total biaya subsidi Rp 1.250/transaksi per bulan. Histori bulan yang telah lewat tetap tersimpan dan dapat diaudit kapan saja.
                 </p>
               </div>

@@ -15,6 +15,8 @@ let allEdukasiVideos = [];
 
 const EWA_SUBSIDY_FEE_PER_TX = 1250; // Fee subsidi perusahaan per transaksi EWA (Rp 1.250 / tx)
 let selectedEwaMonthFilter = 'current'; // 'current' (bulan berjalan), 'all', atau 'YYYY-MM'
+let selectedEwaEmployeeFilter = 'all'; // 'all' atau key email/nama karyawan
+let selectedEwaSearchQuery = ''; // teks pencarian nama karyawan
 
 const SUPABASE_URL = DEFAULT_CONFIG.url.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
 const STORAGE_BUCKET = 'edukasi-videos';
@@ -140,6 +142,7 @@ async function loadEmployees() {
 
     allEmployees = list;
     renderEmployeesTable(allEmployees);
+    populateEwaEmployeeFilter();
     updateOverviewStats();
 
   } catch (err) {
@@ -507,8 +510,9 @@ async function loadWithdrawals() {
 
     allWithdrawals = list;
 
-    // Inisialisasi dropdown filter bulan & kalkulasi tampilan
+    // Inisialisasi dropdown filter bulan & karyawan
     populateEwaMonthFilter();
+    populateEwaEmployeeFilter();
     applyEwaFilterAndRender();
     renderMonthlySubsidyArchive();
     renderOverviewWithdrawals(allWithdrawals.slice(0, 5));
@@ -552,11 +556,99 @@ function populateEwaMonthFilter() {
   filterSelect.value = selectedEwaMonthFilter;
 }
 
+function populateEwaEmployeeFilter() {
+  const filterSelect = document.getElementById('ewaEmployeeFilter');
+  if (!filterSelect) return;
+
+  const empMap = new Map();
+
+  allWithdrawals.forEach(w => {
+    const rawName = (w.employee_name || 'Karyawan').trim();
+    const rawEmail = (w.email || '').trim();
+    const key = (rawEmail && rawEmail !== '-' ? rawEmail : rawName).toLowerCase();
+
+    if (!empMap.has(key)) {
+      empMap.set(key, {
+        name: rawName,
+        email: rawEmail !== '-' ? rawEmail : '',
+        count: 0,
+        amount: 0
+      });
+    }
+    const rec = empMap.get(key);
+    rec.count++;
+    rec.amount += Number(w.amount || 0);
+  });
+
+  // Tambahkan juga karyawan dari daftar master employees
+  allEmployees.forEach(e => {
+    const isCompany = e.email && e.email.toLowerCase() === 'halo.cashper@gmail.com';
+    if (isCompany) return;
+    const rawName = (e.full_name || 'Karyawan').trim();
+    const rawEmail = (e.email || '').trim();
+    const key = (rawEmail && rawEmail !== '-' ? rawEmail : rawName).toLowerCase();
+
+    if (!empMap.has(key)) {
+      empMap.set(key, {
+        name: rawName,
+        email: rawEmail !== '-' ? rawEmail : '',
+        count: 0,
+        amount: 0
+      });
+    }
+  });
+
+  // Urutkan dari frekuensi transaksi terbanyak
+  const sortedEmps = Array.from(empMap.entries()).sort((a, b) => {
+    if (b[1].count !== a[1].count) {
+      return b[1].count - a[1].count;
+    }
+    return a[1].name.localeCompare(b[1].name);
+  });
+
+  let html = `<option value="all">Semua Karyawan</option>`;
+  sortedEmps.forEach(([key, emp]) => {
+    const txLabel = emp.count > 0 ? `${emp.count}x transaksi` : '0 transaksi';
+    html += `<option value="${escapeHtml(key)}">${escapeHtml(emp.name)} (${txLabel})</option>`;
+  });
+
+  filterSelect.innerHTML = html;
+  filterSelect.value = selectedEwaEmployeeFilter;
+}
+
 function onEwaMonthFilterChange() {
   const filterSelect = document.getElementById('ewaMonthFilter');
   if (!filterSelect) return;
   selectedEwaMonthFilter = filterSelect.value;
   applyEwaFilterAndRender();
+  renderMonthlySubsidyArchive();
+}
+
+function onEwaEmployeeFilterChange() {
+  const filterSelect = document.getElementById('ewaEmployeeFilter');
+  if (!filterSelect) return;
+  selectedEwaEmployeeFilter = filterSelect.value;
+  applyEwaFilterAndRender();
+  renderMonthlySubsidyArchive();
+}
+
+function onEwaSearchChange() {
+  const searchInput = document.getElementById('ewaSearchInput');
+  if (!searchInput) return;
+  selectedEwaSearchQuery = searchInput.value.trim().toLowerCase();
+  applyEwaFilterAndRender();
+  renderMonthlySubsidyArchive();
+}
+
+function resetEwaEmployeeFilter() {
+  selectedEwaEmployeeFilter = 'all';
+  selectedEwaSearchQuery = '';
+  const filterSelect = document.getElementById('ewaEmployeeFilter');
+  const searchInput = document.getElementById('ewaSearchInput');
+  if (filterSelect) filterSelect.value = 'all';
+  if (searchInput) searchInput.value = '';
+  applyEwaFilterAndRender();
+  renderMonthlySubsidyArchive();
 }
 
 function filterEwaByMonth(ym) {
@@ -576,16 +668,38 @@ function filterEwaByMonth(ym) {
 function applyEwaFilterAndRender() {
   const currentYm = getCurrentYearMonthKey();
 
-  // 1. Transaksi Bulan Berjalan (Reset tiap pergantian bulan baru)
-  const currentMonthTx = allWithdrawals.filter(w => getYearMonthKey(w.created_at) === currentYm);
-  const currentMonthSubsidy = currentMonthTx.length * EWA_SUBSIDY_FEE_PER_TX;
+  // Helper pencocokan karyawan terpilih & pencarian
+  function matchesEmployee(w) {
+    if (selectedEwaEmployeeFilter !== 'all') {
+      const wEmail = (w.email || '').toLowerCase().trim();
+      const wName = (w.employee_name || '').toLowerCase().trim();
+      const target = selectedEwaEmployeeFilter.toLowerCase().trim();
+      if (wEmail !== target && wName !== target && !wEmail.includes(target) && !wName.includes(target)) {
+        return false;
+      }
+    }
 
-  const currentSubsidyEl = document.getElementById('ewaSubsidyCurrentMonth');
-  const currentCountEl = document.getElementById('ewaCountCurrentMonth');
-  if (currentSubsidyEl) currentSubsidyEl.textContent = formatRupiah(currentMonthSubsidy);
-  if (currentCountEl) currentCountEl.textContent = currentMonthTx.length;
+    if (selectedEwaSearchQuery !== '') {
+      const q = selectedEwaSearchQuery;
+      const matchName = (w.employee_name || '').toLowerCase().includes(q);
+      const matchEmail = (w.email || '').toLowerCase().includes(q);
+      const matchRef = (w.reference_id || w.id || '').toLowerCase().includes(q);
+      const matchBank = (w.bank_name || '').toLowerCase().includes(q);
+      if (!matchName && !matchEmail && !matchRef && !matchBank) {
+        return false;
+      }
+    }
 
-  // 2. Transaksi Sesuai Filter Pilihan
+    return true;
+  }
+
+  // 1. Seluruh transaksi milik karyawan yang difilter sepanjang waktu
+  const empAllTimeTx = allWithdrawals.filter(matchesEmployee);
+
+  // 2. Transaksi milik karyawan di bulan berjalan saat ini
+  const currentMonthTx = empAllTimeTx.filter(w => getYearMonthKey(w.created_at) === currentYm);
+
+  // 3. Transaksi sesuai filter periode bulan terpilih
   let filteredList = [];
   let periodLabel = 'Bulan Berjalan';
 
@@ -593,12 +707,52 @@ function applyEwaFilterAndRender() {
     filteredList = currentMonthTx;
     periodLabel = formatMonthYearLabel(currentYm);
   } else if (selectedEwaMonthFilter === 'all') {
-    filteredList = allWithdrawals;
+    filteredList = empAllTimeTx;
     periodLabel = 'Semua Waktu';
   } else {
-    filteredList = allWithdrawals.filter(w => getYearMonthKey(w.created_at) === selectedEwaMonthFilter);
+    filteredList = empAllTimeTx.filter(w => getYearMonthKey(w.created_at) === selectedEwaMonthFilter);
     periodLabel = formatMonthYearLabel(selectedEwaMonthFilter);
   }
+
+  // 4. Update Banner Karyawan Terpilih
+  const bannerEl = document.getElementById('ewaEmployeeSummaryBanner');
+  const isEmployeeFiltered = selectedEwaEmployeeFilter !== 'all' || selectedEwaSearchQuery !== '';
+
+  if (bannerEl) {
+    if (isEmployeeFiltered) {
+      bannerEl.style.display = 'flex';
+
+      let displayName = selectedEwaSearchQuery ? `"${selectedEwaSearchQuery}"` : '';
+      if (selectedEwaEmployeeFilter !== 'all') {
+        const selOpt = document.getElementById('ewaEmployeeFilter')?.selectedOptions[0];
+        displayName = selOpt ? selOpt.textContent.split('(')[0].trim() : selectedEwaEmployeeFilter;
+      }
+
+      const totalEmpAmount = empAllTimeTx.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const totalEmpSubsidy = empAllTimeTx.length * EWA_SUBSIDY_FEE_PER_TX;
+
+      const nameEl = document.getElementById('bannerEmpName');
+      const subEl = document.getElementById('bannerEmpSub');
+      const countEl = document.getElementById('bannerEmpCount');
+      const amountEl = document.getElementById('bannerEmpAmount');
+      const subsdEl = document.getElementById('bannerEmpSubsidy');
+
+      if (nameEl) nameEl.textContent = `Karyawan: ${displayName}`;
+      if (subEl) subEl.textContent = `Total ${empAllTimeTx.length}x transaksi EWA tercatat (${periodLabel}: ${filteredList.length}x transaksi)`;
+      if (countEl) countEl.textContent = `${empAllTimeTx.length}x Transaksi`;
+      if (amountEl) amountEl.textContent = formatRupiah(totalEmpAmount);
+      if (subsdEl) subsdEl.textContent = `${formatRupiah(totalEmpSubsidy)} (${empAllTimeTx.length} × Rp 1.250)`;
+    } else {
+      bannerEl.style.display = 'none';
+    }
+  }
+
+  // 5. Update Stat Metric Cards
+  const currentMonthSubsidy = currentMonthTx.length * EWA_SUBSIDY_FEE_PER_TX;
+  const currentSubsidyEl = document.getElementById('ewaSubsidyCurrentMonth');
+  const currentCountEl = document.getElementById('ewaCountCurrentMonth');
+  if (currentSubsidyEl) currentSubsidyEl.textContent = formatRupiah(currentMonthSubsidy);
+  if (currentCountEl) currentCountEl.textContent = currentMonthTx.length;
 
   const selectedSubsidy = filteredList.length * EWA_SUBSIDY_FEE_PER_TX;
   const selectedSubsidyEl = document.getElementById('ewaSubsidySelectedPeriod');
@@ -609,14 +763,13 @@ function applyEwaFilterAndRender() {
   if (selectedCountEl) selectedCountEl.textContent = filteredList.length;
   if (selectedLabelEl) selectedLabelEl.textContent = periodLabel;
 
-  // 3. Total Akumulasi Seluruh Waktu
-  const allTimeSubsidy = allWithdrawals.length * EWA_SUBSIDY_FEE_PER_TX;
+  const allTimeSubsidy = empAllTimeTx.length * EWA_SUBSIDY_FEE_PER_TX;
   const allTimeSubsidyEl = document.getElementById('ewaSubsidyAllTime');
   const allTimeCountEl = document.getElementById('ewaCountAllTime');
   if (allTimeSubsidyEl) allTimeSubsidyEl.textContent = formatRupiah(allTimeSubsidy);
-  if (allTimeCountEl) allTimeCountEl.textContent = allWithdrawals.length;
+  if (allTimeCountEl) allTimeCountEl.textContent = empAllTimeTx.length;
 
-  // Render Tabel
+  // 6. Render Tabel Transaksi
   renderWithdrawalsTable(filteredList);
 }
 
@@ -625,7 +778,7 @@ function renderWithdrawalsTable(list) {
   if (!tbody) return;
 
   if (!list || list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" class="table-empty">Belum ada transaksi pencairan EWA pada periode ini.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="table-empty">Belum ada transaksi pencairan EWA pada filter ini.</td></tr>';
     return;
   }
 
@@ -671,11 +824,61 @@ function renderMonthlySubsidyArchive() {
 
   const currentYm = getCurrentYearMonthKey();
 
+  function matchesEmployee(w) {
+    if (selectedEwaEmployeeFilter !== 'all') {
+      const wEmail = (w.email || '').toLowerCase().trim();
+      const wName = (w.employee_name || '').toLowerCase().trim();
+      const target = selectedEwaEmployeeFilter.toLowerCase().trim();
+      if (wEmail !== target && wName !== target && !wEmail.includes(target) && !wName.includes(target)) {
+        return false;
+      }
+    }
+    if (selectedEwaSearchQuery !== '') {
+      const q = selectedEwaSearchQuery;
+      const matchName = (w.employee_name || '').toLowerCase().includes(q);
+      const matchEmail = (w.email || '').toLowerCase().includes(q);
+      const matchRef = (w.reference_id || w.id || '').toLowerCase().includes(q);
+      const matchBank = (w.bank_name || '').toLowerCase().includes(q);
+      if (!matchName && !matchEmail && !matchRef && !matchBank) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  const isEmployeeFiltered = selectedEwaEmployeeFilter !== 'all' || selectedEwaSearchQuery !== '';
+  const dataset = isEmployeeFiltered ? allWithdrawals.filter(matchesEmployee) : allWithdrawals;
+
+  // Update Judul Card
+  const titleEl = document.getElementById('monthlySubsidyTitle');
+  const subtitleEl = document.getElementById('monthlySubsidySubtitle');
+
+  if (titleEl) {
+    if (isEmployeeFiltered) {
+      let displayName = selectedEwaSearchQuery ? `"${selectedEwaSearchQuery}"` : '';
+      if (selectedEwaEmployeeFilter !== 'all') {
+        const selOpt = document.getElementById('ewaEmployeeFilter')?.selectedOptions[0];
+        displayName = selOpt ? selOpt.textContent.split('(')[0].trim() : selectedEwaEmployeeFilter;
+      }
+      titleEl.textContent = `Histori & Rekap Bulanan: ${displayName} (${dataset.length}x Transaksi)`;
+    } else {
+      titleEl.textContent = 'Histori & Arsip Subsidi Bulanan Perusahaan';
+    }
+  }
+
+  if (subtitleEl) {
+    if (isEmployeeFiltered) {
+      subtitleEl.textContent = `Rincian frekuensi transaksi dan beban subsidi perusahaan Rp 1.250/tx yang telah dinikmati per bulan.`;
+    } else {
+      subtitleEl.textContent = `Rekap total biaya subsidi Rp 1.250/transaksi per bulan. Histori bulan yang telah lewat tetap tersimpan dan dapat diaudit kapan saja.`;
+    }
+  }
+
   // Group withdrawals per YYYY-MM
   const monthMap = {};
   monthMap[currentYm] = []; // Pastikan bulan berjalan selalu ada di baris pertama
 
-  allWithdrawals.forEach(w => {
+  dataset.forEach(w => {
     const ym = getYearMonthKey(w.created_at);
     if (!ym) return;
     if (!monthMap[ym]) {
@@ -713,7 +916,7 @@ function renderMonthlySubsidyArchive() {
       <tr>
         <td><strong>${formatMonthYearLabel(ym)}</strong></td>
         <td>${statusBadge}</td>
-        <td>${count} Transaksi</td>
+        <td><strong>${count}</strong> Transaksi</td>
         <td>${formatRupiah(totalAmount)}</td>
         <td>
           <strong class="text-green">${formatRupiah(totalSubsidy)}</strong>
