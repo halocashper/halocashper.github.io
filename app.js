@@ -2331,8 +2331,8 @@ function renderCompaniesTable(list) {
     ).length;
 
     const statusBadge = c.is_active !== false 
-      ? `<span class="badge badge-success">Aktif</span>`
-      : `<span class="badge badge-danger">Nonaktif</span>`;
+      ? `<span class="status-tag active"><span class="material-symbols-rounded" style="font-size:14px;">check_circle</span> Aktif</span>`
+      : `<span class="status-tag inactive"><span class="material-symbols-rounded" style="font-size:14px;">cancel</span> Nonaktif</span>`;
 
     const deleteBtn = `
       <button class="btn btn-danger btn-sm" onclick="deleteCompany('${c.id}', '${c.company_code}', '${escapeHtml(c.name)}')" title="Hapus Perusahaan">
@@ -2341,24 +2341,33 @@ function renderCompaniesTable(list) {
       </button>
     `;
 
+    const addressDisplay = c.address ? `<div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">${escapeHtml(c.address)}</div>` : '';
+    const phoneDisplay = c.phone ? `<span style="font-family:monospace; font-size:0.85rem; color:#e2e8f0;">${escapeHtml(c.phone)}</span>` : '<span style="color:var(--text-muted);">-</span>';
+    const emailDisplay = c.pic_email ? `<span style="font-size:0.83rem; color:var(--text-muted);">${escapeHtml(c.pic_email)}</span>` : '<span style="color:var(--text-muted);">-</span>';
+    const picDisplay = c.pic_name ? `<div style="font-weight:500; color:#f1f5f9;">${escapeHtml(c.pic_name)}</div>` : '<span style="color:var(--text-muted);">-</span>';
+
     return `
       <tr>
         <td>
-          <span style="font-family:monospace;font-weight:700;color:#bf5ae8;background:rgba(124,45,184,0.18);padding:3px 8px;border-radius:4px;border:1px solid rgba(124,45,184,0.35);">
+          <span style="font-family:monospace; font-weight:700; color:#c084fc; background:rgba(168,85,247,0.14); padding:4px 9px; border-radius:6px; border:1px solid rgba(168,85,247,0.3); letter-spacing:0.5px; white-space:nowrap; display:inline-block;">
             ${escapeHtml(c.company_code)}
           </span>
         </td>
         <td>
-          <div style="font-weight:600;color:#fff;">${escapeHtml(c.name)}</div>
-          <div style="font-size:0.75rem;color:var(--text-muted);">${escapeHtml(c.address || '-')}</div>
+          <div style="font-weight:600; color:#ffffff; font-size:0.92rem;">${escapeHtml(c.name)}</div>
+          ${addressDisplay}
         </td>
-        <td>${escapeHtml(c.pic_name || '-')}</td>
-        <td>${escapeHtml(c.pic_email || '-')}</td>
-        <td>${escapeHtml(c.phone || '-')}</td>
-        <td><strong>${empCount}</strong> orang</td>
+        <td>${picDisplay}</td>
+        <td>${emailDisplay}</td>
+        <td>${phoneDisplay}</td>
+        <td>
+          <span style="display:inline-block; font-weight:600; color:#fff; background:rgba(255,255,255,0.06); padding:3px 10px; border-radius:12px; font-size:0.8rem; white-space:nowrap;">
+            ${empCount} orang
+          </span>
+        </td>
         <td>${statusBadge}</td>
         <td style="text-align:right;">
-          <div style="display:inline-flex;gap:6px;">
+          <div class="table-row-actions">
             <button class="btn btn-secondary btn-sm" onclick="openEditCompanyModal('${c.id}')" title="Edit Perusahaan">
               <span class="material-symbols-rounded" style="font-size:15px;">edit</span>
               <span>Edit</span>
