@@ -50,10 +50,10 @@ function checkUserSession() {
     if (landingPage) landingPage.classList.add('view-hidden');
     if (appLayout) appLayout.classList.remove('view-hidden');
     applyUserSessionUI();
-    loadEmployees();
-    loadWithdrawals();
     if (currentAuth.role === 'super_admin') {
-      loadCompanies();
+      navigate('companies');
+    } else {
+      navigate('overview');
     }
   } else {
     if (landingPage) landingPage.classList.remove('view-hidden');
@@ -65,20 +65,47 @@ function checkUserSession() {
 function applyUserSessionUI() {
   if (!currentAuth) return;
 
+  const navOverview = document.getElementById('navOverview');
   const navCompanies = document.getElementById('navCompanies');
+  const navEmployees = document.getElementById('navEmployees');
+  const navWithdrawals = document.getElementById('navWithdrawals');
+  const navPayroll = document.getElementById('navPayroll');
+  const navEdukasi = document.getElementById('navEdukasi');
+  const btnTopbarAddEmployee = document.getElementById('btnTopbarAddEmployee');
+
   const sidebarBrandTitle = document.getElementById('sidebarBrandTitle');
   const sidebarBrandSubtitle = document.getElementById('sidebarBrandSubtitle');
   const sidebarUserName = document.getElementById('sidebarUserName');
   const sidebarUserCompany = document.getElementById('sidebarUserCompany');
 
   if (currentAuth.role === 'super_admin') {
+    // Super Admin Cashper: HANYA ada menu Perusahaan Mitra
+    // Sembunyikan Dashboard, Karyawan, Transaksi EWA, Rekap Payroll, dan EduCash Video
+    if (navOverview) navOverview.style.display = 'none';
     if (navCompanies) navCompanies.style.display = 'flex';
+    if (navEmployees) navEmployees.style.display = 'none';
+    if (navWithdrawals) navWithdrawals.style.display = 'none';
+    if (navPayroll) navPayroll.style.display = 'none';
+    if (navEdukasi) navEdukasi.style.display = 'none';
+
+    // Sembunyikan tombol + Tambah Karyawan di topbar
+    if (btnTopbarAddEmployee) btnTopbarAddEmployee.style.display = 'none';
+
     if (sidebarBrandSubtitle) sidebarBrandSubtitle.textContent = 'Super Admin';
     if (sidebarUserName) sidebarUserName.textContent = 'Admin Cashper';
-    if (sidebarUserCompany) sidebarUserCompany.textContent = 'Pusat Moderasi';
+    if (sidebarUserCompany) sidebarUserCompany.textContent = 'Penyedia Layanan Cashper';
   } else {
-    // Role HR Perusahaan
+    // Role HR Perusahaan Mitra: Akses penuh operasional karyawan & EWA perusahaan
+    if (navOverview) navOverview.style.display = 'flex';
     if (navCompanies) navCompanies.style.display = 'none';
+    if (navEmployees) navEmployees.style.display = 'flex';
+    if (navWithdrawals) navWithdrawals.style.display = 'flex';
+    if (navPayroll) navPayroll.style.display = 'flex';
+    if (navEdukasi) navEdukasi.style.display = 'flex';
+
+    // Tampilkan tombol + Tambah Karyawan di topbar untuk HR
+    if (btnTopbarAddEmployee) btnTopbarAddEmployee.style.display = 'inline-flex';
+
     if (sidebarBrandSubtitle) sidebarBrandSubtitle.textContent = 'HR Portal';
     if (sidebarUserName) sidebarUserName.textContent = 'HR Manager';
     if (sidebarUserCompany) sidebarUserCompany.textContent = currentAuth.companyName + ` (${currentAuth.companyCode})`;
@@ -114,6 +141,15 @@ function toggleSidebar() {
 }
 
 function navigate(sectionId) {
+  // Batasi Super Admin agar HANYA berada di tab companies (Perusahaan Mitra)
+  if (currentAuth && currentAuth.role === 'super_admin' && sectionId !== 'companies') {
+    sectionId = 'companies';
+  }
+  // Batasi HR agar tidak bisa membuka companies
+  if (currentAuth && currentAuth.role === 'hr' && sectionId === 'companies') {
+    sectionId = 'overview';
+  }
+
   // Hide all sections
   document.querySelectorAll('.content-section').forEach(sec => sec.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
@@ -2068,8 +2104,6 @@ async function handleLoginAdmin(e) {
 
     navigate('companies');
     loadCompanies();
-    loadEmployees();
-    loadWithdrawals();
 
   } catch (err) {
     errDiv.textContent = err.message || 'Gagal masuk sebagai Admin Cashper.';
@@ -2112,11 +2146,11 @@ async function loadCompanies() {
     if (error) throw error;
 
     let list = data || [];
-    // Jika tabel kosong, masukkan perusahaan default Cashper
+    // Jika tabel kosong, sediakan format C-191026
     if (list.length === 0) {
       list = [{
         id: 'default-cashper',
-        company_code: 'CASHPER',
+        company_code: 'C-191026',
         name: 'Cashper Indonesia',
         pic_name: 'Admin Cashper',
         pic_email: 'halo.cashper@gmail.com',
@@ -2130,10 +2164,9 @@ async function loadCompanies() {
 
   } catch (err) {
     console.warn('loadCompanies warning:', err);
-    // Fallback data
     allCompanies = [{
       id: 'default-cashper',
-      company_code: 'CASHPER',
+      company_code: 'C-191026',
       name: 'Cashper Indonesia',
       pic_name: 'Admin Cashper',
       pic_email: 'halo.cashper@gmail.com',
@@ -2155,7 +2188,7 @@ function renderCompaniesTable(list) {
 
   tbody.innerHTML = list.map(c => {
     // Hitung jumlah karyawan di perusahaan ini
-    const empCount = allEmployees.filter(e => 
+    const empCount = (allEmployees || []).filter(e => 
       (e.company_code || '').toUpperCase() === (c.company_code || '').toUpperCase() ||
       (e.company || '').toLowerCase() === (c.name || '').toLowerCase() ||
       (e.company || '').toUpperCase() === (c.company_code || '').toUpperCase()
@@ -2165,7 +2198,7 @@ function renderCompaniesTable(list) {
       ? `<span class="badge badge-success">Aktif</span>`
       : `<span class="badge badge-danger">Nonaktif</span>`;
 
-    const isDefault = c.company_code === 'CASHPER';
+    const isDefault = c.company_code === 'C-191026' || c.company_code === 'CASHPER';
     const deleteBtn = isDefault 
       ? '' 
       : `<button class="btn btn-danger btn-sm" onclick="deleteCompany('${c.company_code}', '${escapeHtml(c.name)}')" title="Hapus Perusahaan">
@@ -2202,8 +2235,35 @@ function renderCompaniesTable(list) {
   }).join('');
 }
 
+// Generate ID Perusahaan berformat C-DDMMYY (Contoh: C-191026)
+function generateCompanyCode() {
+  const now = new Date();
+  const day = String(now.getDate()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const year = String(now.getFullYear()).slice(-2);
+  const baseCode = `C-${day}${month}${year}`;
+
+  if (allCompanies && allCompanies.some(c => (c.company_code || '').toUpperCase() === baseCode)) {
+    let count = 2;
+    while (allCompanies.some(c => (c.company_code || '').toUpperCase() === `${baseCode}-${String(count).padStart(2, '0')}`)) {
+      count++;
+    }
+    return `${baseCode}-${String(count).padStart(2, '0')}`;
+  }
+  return baseCode;
+}
+
+function setGeneratedCompanyCode() {
+  const input = document.getElementById('addCompanyCode');
+  if (input) input.value = generateCompanyCode();
+}
+
 function openAddCompanyModal() {
-  document.getElementById('addCompanyForm').reset();
+  const form = document.getElementById('addCompanyForm');
+  if (form) form.reset();
+  const passwordInput = document.getElementById('addCompanyPassword');
+  if (passwordInput) passwordInput.value = 'cashper123';
+  setGeneratedCompanyCode();
   document.getElementById('addCompanyModal').classList.add('show');
 }
 
@@ -2216,6 +2276,7 @@ async function handleCreateCompany(e) {
   const name = (document.getElementById('addCompanyName').value || '').trim();
   const pic = (document.getElementById('addCompanyPic').value || '').trim();
   const email = (document.getElementById('addCompanyEmail').value || '').trim().toLowerCase();
+  const password = (document.getElementById('addCompanyPassword').value || '').trim();
   const phone = (document.getElementById('addCompanyPhone').value || '').trim();
   const address = (document.getElementById('addCompanyAddress').value || '').trim();
 
@@ -2224,12 +2285,23 @@ async function handleCreateCompany(e) {
     return;
   }
 
+  if (!email || !password || !pic) {
+    showToast('Lengkapi data Akun HR (Nama PIC, Email HR, dan Kata Sandi).', 'error');
+    return;
+  }
+
+  if (password.length < 6) {
+    showToast('Kata sandi Akun HR minimal 6 karakter.', 'error');
+    return;
+  }
+
   btn.classList.add('loading');
   btn.disabled = true;
-  btnText.textContent = 'Menyimpan...';
+  btnText.textContent = 'Mendaftarkan...';
 
   try {
-    const { error } = await supabaseClient
+    // 1. Simpan Perusahaan ke tabel companies
+    const { error: compError } = await supabaseClient
       .from('companies')
       .insert({
         company_code: code,
@@ -2241,14 +2313,69 @@ async function handleCreateCompany(e) {
         is_active: true
       });
 
-    if (error) {
-      if (error.code === '23505' || error.message.includes('unique')) {
+    if (compError) {
+      if (compError.code === '23505' || compError.message.includes('unique')) {
         throw new Error(`ID Perusahaan "${code}" sudah terdaftar! Gunakan ID lain.`);
       }
-      throw error;
+      throw compError;
     }
 
-    showToast(`Perusahaan "${name}" (${code}) berhasil ditambahkan!`, 'success');
+    // 2. Buat Akun Auth HR di Supabase
+    let hrUserId = null;
+    try {
+      const { data: authData, error: authErr } = await supabaseClient.auth.signUp({
+        email: email,
+        password: password,
+        options: {
+          data: {
+            full_name: pic,
+            company: name,
+            company_code: code,
+            role: 'hr'
+          }
+        }
+      });
+      if (!authErr && authData && authData.user) {
+        hrUserId = authData.user.id;
+      }
+    } catch (authEx) {
+      console.warn('Native HR signup warning:', authEx);
+    }
+
+    // 3. Daftarkan profil HR di tabel employees agar terdata di perusahaan
+    try {
+      if (hrUserId) {
+        await supabaseClient.rpc('admin_link_employee_profile', {
+          p_user_id: hrUserId,
+          p_email: email,
+          p_full_name: pic,
+          p_company: name,
+          p_role_id: 3,
+          p_bank_name: 'BRI',
+          p_bank_account_number: '-',
+          p_payday_day: 28
+        });
+      } else {
+        await supabaseClient.rpc('admin_register_employee', {
+          p_email: email,
+          p_full_name: pic,
+          p_company: name,
+          p_role_id: 3,
+          p_bank_name: 'BRI',
+          p_bank_account_number: '-',
+          p_payday_day: 28
+        });
+      }
+      // Pastikan company_code tersimpan pada record employee HR
+      await supabaseClient
+        .from('employees')
+        .update({ company_code: code, company: name })
+        .ilike('email', email);
+    } catch (empEx) {
+      console.warn('Sync employee table warning:', empEx);
+    }
+
+    showToast(`Perusahaan "${name}" (${code}) & Akun HR (${email}) berhasil didaftarkan!`, 'success');
     closeModal('addCompanyModal');
     loadCompanies();
 
@@ -2257,7 +2384,7 @@ async function handleCreateCompany(e) {
   } finally {
     btn.classList.remove('loading');
     btn.disabled = false;
-    btnText.textContent = 'Simpan Perusahaan';
+    btnText.textContent = '+ Daftarkan Perusahaan & HR';
   }
 }
 

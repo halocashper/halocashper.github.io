@@ -394,7 +394,7 @@
           <h1 class="page-title" id="pageTitle">Dashboard Ringkasan</h1>
         </div>
         <div class="topbar-right">
-          <button class="btn btn-primary" onclick="openAddEmployeeModal()">
+          <button class="btn btn-primary" id="btnTopbarAddEmployee" onclick="openAddEmployeeModal()">
             <span class="material-symbols-rounded">person_add</span>
             <span>+ Tambah Karyawan</span>
           </button>
@@ -1204,8 +1204,8 @@
           <div class="form-grid">
             <div class="form-group full-width">
               <label>ID Perusahaan <span class="required">*</span></label>
-              <input type="text" id="loginHrCompanyCode" placeholder="Contoh: CASHPER atau WKS-01" required style="text-transform: uppercase;">
-              <small class="hint">ID unik perusahaan yang diberikan oleh Admin Cashper.</small>
+              <input type="text" id="loginHrCompanyCode" placeholder="Contoh: C-191026" required style="text-transform: uppercase;">
+              <small class="hint">ID unik perusahaan yang diberikan oleh Admin Cashper (Contoh: C-191026).</small>
             </div>
             <div class="form-group full-width">
               <label>Email HR <span class="required">*</span></label>
@@ -1269,13 +1269,13 @@
     </div>
   </div>
 
-  <!-- MODAL: TAMBAH PERUSAHAAN MITRA BARU -->
+  <!-- MODAL: TAMBAH PERUSAHAAN MITRA BARU & AKUN HR -->
   <div class="modal-backdrop" id="addCompanyModal">
-    <div class="modal-dialog" style="max-width: 520px;">
+    <div class="modal-dialog" style="max-width: 560px;">
       <div class="modal-header">
         <div class="modal-title-group">
           <span class="material-symbols-rounded text-purple">add_business</span>
-          <h3>Tambah Perusahaan Mitra Baru</h3>
+          <h3>Tambah Perusahaan Mitra & Akun HR</h3>
         </div>
         <button class="btn-close" onclick="closeModal('addCompanyModal')">
           <span class="material-symbols-rounded">close</span>
@@ -1284,29 +1284,58 @@
       <form id="addCompanyForm" onsubmit="handleCreateCompany(event)">
         <div class="modal-body">
           <div class="form-grid">
-            <div class="form-group">
+            <div class="form-group full-width">
               <label>ID Perusahaan (Unik) <span class="required">*</span></label>
-              <input type="text" id="addCompanyCode" placeholder="Contoh: WKS-01" required style="text-transform: uppercase;">
-              <small class="hint">Kode unik untuk login HR & karyawan APK.</small>
+              <div style="display:flex; gap:8px;">
+                <input type="text" id="addCompanyCode" placeholder="Contoh: C-191026" required style="text-transform: uppercase; font-family:monospace; font-weight:700; letter-spacing:0.5px;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="setGeneratedCompanyCode()" title="Generate ID Otomatis" style="white-space:nowrap; padding:0 14px;">
+                  <span class="material-symbols-rounded" style="font-size:16px;">autorenew</span>
+                  <span>Auto ID</span>
+                </button>
+              </div>
+              <small class="hint">Kode unik perusahaan (Contoh format: <strong>C-191026</strong>) untuk login HR & karyawan APK.</small>
             </div>
-            <div class="form-group">
+
+            <div class="form-group full-width">
               <label>Nama Resmi Perusahaan <span class="required">*</span></label>
-              <input type="text" id="addCompanyName" placeholder="PT Contoh Mandiri" required>
+              <input type="text" id="addCompanyName" placeholder="Contoh: PT Sumber Makmur Sentosa" required>
             </div>
-            <div class="form-group">
-              <label>Nama PIC / HR</label>
-              <input type="text" id="addCompanyPic" placeholder="Nama Manajer HR">
+
+            <!-- Divider: Kredensial Akun HR Perusahaan -->
+            <div class="form-group full-width" style="margin-top:4px; padding-top:12px; border-top:1px dashed var(--border-subtle);">
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+                <span class="material-symbols-rounded text-purple" style="font-size:18px;">badge</span>
+                <strong style="font-size:0.88rem; color:#fff;">Pendaftaran Akun HR Perusahaan</strong>
+              </div>
+              <p style="font-size:0.75rem; color:var(--text-muted); margin:0;">
+                Kredensial ini digunakan HR perusahaan untuk login ke dashboard operasional karyawan & EWA.
+              </p>
             </div>
+
             <div class="form-group">
-              <label>Email HR</label>
-              <input type="email" id="addCompanyEmail" placeholder="hr@perusahaan.com">
+              <label>Nama PIC / Manajer HR <span class="required">*</span></label>
+              <input type="text" id="addCompanyPic" placeholder="Nama Lengkap HR" required>
             </div>
+
             <div class="form-group">
-              <label>No. Telepon / WhatsApp</label>
+              <label>No. Telepon / WhatsApp HR</label>
               <input type="text" id="addCompanyPhone" placeholder="08123456789">
             </div>
+
             <div class="form-group">
-              <label>Alamat Perusahaan</label>
+              <label>Email Akun HR <span class="required">*</span></label>
+              <input type="email" id="addCompanyEmail" placeholder="hr@perusahaan.com" required>
+              <small class="hint">Email untuk login di Portal HR.</small>
+            </div>
+
+            <div class="form-group">
+              <label>Kata Sandi Akun HR <span class="required">*</span></label>
+              <input type="text" id="addCompanyPassword" value="cashper123" required minlength="6">
+              <small class="hint">Sandi awal login HR (min. 6 karakter).</small>
+            </div>
+
+            <div class="form-group full-width">
+              <label>Alamat Kantor Perusahaan</label>
               <input type="text" id="addCompanyAddress" placeholder="Jakarta, Indonesia">
             </div>
           </div>
@@ -1315,7 +1344,7 @@
           <button type="button" class="btn btn-secondary" onclick="closeModal('addCompanyModal')">Batal</button>
           <button type="submit" class="btn btn-primary" id="btnSubmitAddCompany">
             <span class="btn-spinner" id="spinnerAddCompany"></span>
-            <span id="textSubmitAddCompany">Simpan Perusahaan</span>
+            <span id="textSubmitAddCompany">+ Daftarkan Perusahaan & HR</span>
           </button>
         </div>
       </form>
