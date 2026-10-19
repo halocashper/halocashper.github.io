@@ -2145,34 +2145,12 @@ async function loadCompanies() {
 
     if (error) throw error;
 
-    let list = data || [];
-    // Jika tabel kosong, sediakan format C-191026
-    if (list.length === 0) {
-      list = [{
-        id: 'default-cashper',
-        company_code: 'C-191026',
-        name: 'Cashper Indonesia',
-        pic_name: 'Admin Cashper',
-        pic_email: 'halo.cashper@gmail.com',
-        phone: '08123456789',
-        is_active: true
-      }];
-    }
-
-    allCompanies = list;
+    allCompanies = data || [];
     renderCompaniesTable(allCompanies);
 
   } catch (err) {
     console.warn('loadCompanies warning:', err);
-    allCompanies = [{
-      id: 'default-cashper',
-      company_code: 'C-191026',
-      name: 'Cashper Indonesia',
-      pic_name: 'Admin Cashper',
-      pic_email: 'halo.cashper@gmail.com',
-      phone: '08123456789',
-      is_active: true
-    }];
+    allCompanies = [];
     renderCompaniesTable(allCompanies);
   }
 }
@@ -2182,7 +2160,7 @@ function renderCompaniesTable(list) {
   if (!tbody) return;
 
   if (!list || list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" class="table-empty">Belum ada perusahaan mitra yang terdaftar.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="table-empty">Belum ada perusahaan mitra yang terdaftar.<br><small style="color:var(--text-muted);">Klik tombol <strong>"+ Tambah Perusahaan"</strong> untuk mendaftarkan mitra baru.</small></td></tr>';
     return;
   }
 
@@ -2199,7 +2177,7 @@ function renderCompaniesTable(list) {
       : `<span class="badge badge-danger">Nonaktif</span>`;
 
     const deleteBtn = `
-      <button class="btn btn-danger btn-sm" onclick="deleteCompany('${c.company_code}', '${escapeHtml(c.name)}')" title="Hapus Perusahaan">
+      <button class="btn btn-danger btn-sm" onclick="deleteCompany('${c.id}', '${c.company_code}', '${escapeHtml(c.name)}')" title="Hapus Perusahaan">
         <span class="material-symbols-rounded" style="font-size:15px;">delete</span>
         <span>Hapus</span>
       </button>
@@ -2447,44 +2425,58 @@ async function handleUpdateCompany(e) {
   }
 }
 
-async function deleteCompany(code, name) {
-  if (!confirm(`Hapus perusahaan "${name}" (${code}) dari sistem Cashper?\nData perusahaan mitra ini akan dihapus.`)) return;
+async function deleteCompany(id, code, name) {
+  if (!confirm(`Hapus perusahaan "${name}" (${code}) dari sistem Cashper?\nData perusahaan mitra ini akan dihapus permanen.`)) return;
 
   try {
     let deleted = false;
 
-    // 1. Coba hapus via RPC
+    // 1. Coba hapus via RPC (security definer)
     try {
-      const { data, error } = await supabaseClient.rpc('admin_delete_company', { p_company_code: code });
+      const { data, error } = await supabaseClient.rpc('admin_delete_company', { 
+        p_company_code: code,
+        p_company_id: id 
+      });
       if (!error && (data?.success || data === true)) {
         deleted = true;
       }
     } catch (rpcErr) {
-      console.warn('RPC delete company error:', rpcErr);
+      try {
+        const { data, error } = await supabaseClient.rpc('admin_delete_company', { p_company_code: code });
+        if (!error && (data?.success || data === true)) {
+          deleted = true;
+        }
+      } catch (_) {}
     }
 
-    // 2. Fallback: Hapus langsung dari tabel companies (case-insensitive & exact)
-    if (!deleted) {
-      const { error: err1 } = await supabaseClient
-        .from('companies')
-        .delete()
-        .ilike('company_code', code);
-
-      if (err1) {
-        const { error: err2 } = await supabaseClient
+    // 2. Hapus langsung via primary key ID jika valid
+    if (id && id !== 'default-cashper') {
+      try {
+        await supabaseClient
           .from('companies')
           .delete()
-          .eq('company_code', code);
-        if (err2) throw err2;
+          .eq('id', id);
+      } catch (idErr) {
+        console.warn('Direct delete by id warning:', idErr);
       }
     }
 
+    // 3. Hapus langsung via company_code
+    try {
+      await supabaseClient
+        .from('companies')
+        .delete()
+        .eq('company_code', code);
+    } catch (codeErr) {
+      console.warn('Direct delete by code warning:', codeErr);
+    }
+
     // Update state lokal seketika
-    allCompanies = allCompanies.filter(c => (c.company_code || '').toUpperCase() !== (code || '').toUpperCase());
+    allCompanies = allCompanies.filter(c => c.id !== id && (c.company_code || '').toUpperCase() !== (code || '').toUpperCase());
     renderCompaniesTable(allCompanies);
 
-    showToast(`Perusahaan "${name}" (${code}) berhasil dihapus.`, 'success');
-    loadCompanies();
+    showToast(`Perusahaan "${name}" (${code}) berhasil dihapus permanen.`, 'success');
+    await loadCompanies();
 
   } catch (err) {
     showToast('Gagal menghapus perusahaan: ' + err.message, 'error');
