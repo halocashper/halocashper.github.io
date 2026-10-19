@@ -46,12 +46,6 @@
           <span class="nav-label">Transaksi EWA</span>
         </button>
 
-        <button class="nav-item" id="navLoans" onclick="navigate('loans')">
-          <span class="material-symbols-rounded">handshake</span>
-          <span class="nav-label">Pinjaman Karyawan</span>
-          <span class="nav-badge-pill" id="badgeLoansNav">1</span>
-        </button>
-
         <button class="nav-item" id="navPayroll" onclick="navigate('payroll')">
           <span class="material-symbols-rounded">account_balance</span>
           <span class="nav-label">Rekap Payroll</span>
@@ -140,6 +134,19 @@
                 <span class="stat-number">40% <small>Gaji Pokok</small></span>
               </div>
             </div>
+
+            <div class="stat-card">
+              <div class="stat-icon-wrapper purple">
+                <span class="material-symbols-rounded">volunteer_activism</span>
+              </div>
+              <div class="stat-data">
+                <span class="stat-caption">Subsidi EWA Perusahaan</span>
+                <span class="stat-number" id="overviewMonthlySubsidy">Rp 0</span>
+                <span style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">
+                  Rp 1.250 / tx • <span id="overviewMonthlySubsidyTxCount">0</span> tx (Bulan Ini)
+                </span>
+              </div>
+            </div>
           </div>
 
           <!-- Quick Overview Split Grid -->
@@ -212,38 +219,6 @@
               </div>
             </div>
           </div>
-
-          <!-- Quick Overview: Pengajuan Pinjaman Perlu Validasi HRD -->
-          <div class="panel-card" style="margin-top: 24px;">
-            <div class="panel-header">
-              <div class="panel-title-group">
-                <span class="material-symbols-rounded text-purple">handshake</span>
-                <h3 class="panel-title">Pengajuan Pinjaman Karyawan (Perlu Validasi HRD)</h3>
-              </div>
-              <button class="btn btn-secondary btn-sm" onclick="navigate('loans')">
-                Kelola Semua Pinjaman
-              </button>
-            </div>
-            <div class="table-responsive">
-              <table class="simple-table">
-                <thead>
-                  <tr>
-                    <th>Ref ID</th>
-                    <th>Karyawan</th>
-                    <th>Pokok Pinjaman</th>
-                    <th>Tenor & Bunga</th>
-                    <th>Cicilan / Bln</th>
-                    <th>Skema Pelunasan</th>
-                    <th>Status</th>
-                    <th style="text-align: center;">Aksi Cepat HRD</th>
-                  </tr>
-                </thead>
-                <tbody id="overviewLoansBody">
-                  <tr><td colspan="8" class="table-empty">Memuat data pinjaman...</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
         </section>
 
         <!-- SECTION 2: KARYAWAN -->
@@ -289,20 +264,75 @@
 
         <!-- SECTION 3: TRANSAKSI EWA -->
         <section id="sectionWithdrawals" class="content-section">
-          <div class="panel-card">
-            <div class="panel-header table-toolbar">
-              <div class="panel-title-group">
-                <span class="material-symbols-rounded text-purple">receipt</span>
-                <h3 class="panel-title">Semua Riwayat Transaksi EWA</h3>
+          <!-- Summary Metric Cards EWA & Subsidi -->
+          <div class="stats-grid" style="margin-bottom: 20px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));">
+            <div class="stat-card">
+              <div class="stat-icon-wrapper purple">
+                <span class="material-symbols-rounded">volunteer_activism</span>
               </div>
-              <div class="toolbar-actions">
+              <div class="stat-data">
+                <span class="stat-caption">Subsidi EWA Perusahaan (Bulan Berjalan)</span>
+                <span class="stat-number" id="ewaSubsidyCurrentMonth">Rp 0</span>
+                <span style="font-size: 0.74rem; color: var(--text-muted); margin-top: 2px;">
+                  Rp 1.250 / tx • <strong id="ewaCountCurrentMonth">0</strong> transaksi (Reset tiap awal bulan)
+                </span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon-wrapper mint">
+                <span class="material-symbols-rounded">filter_alt</span>
+              </div>
+              <div class="stat-data">
+                <span class="stat-caption">Subsidi Periode Terpilih</span>
+                <span class="stat-number" id="ewaSubsidySelectedPeriod">Rp 0</span>
+                <span style="font-size: 0.74rem; color: var(--text-muted); margin-top: 2px;">
+                  <span id="ewaSelectedPeriodLabel">Bulan Berjalan</span> • <strong id="ewaCountSelectedPeriod">0</strong> transaksi
+                </span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon-wrapper blue">
+                <span class="material-symbols-rounded">savings</span>
+              </div>
+              <div class="stat-data">
+                <span class="stat-caption">Total Akumulasi Subsidi (Semua Waktu)</span>
+                <span class="stat-number" id="ewaSubsidyAllTime">Rp 0</span>
+                <span style="font-size: 0.74rem; color: var(--text-muted); margin-top: 2px;">
+                  Dari total <strong id="ewaCountAllTime">0</strong> transaksi EWA keseluruhan
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel-card">
+            <div class="panel-header table-toolbar" style="flex-wrap: wrap; gap: 12px;">
+              <div>
+                <div class="panel-title-group">
+                  <span class="material-symbols-rounded text-purple">receipt</span>
+                  <h3 class="panel-title">Riwayat Transaksi EWA & Subsidi Perusahaan</h3>
+                </div>
+                <p class="section-subtitle" style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">
+                  Perusahaan memberikan subsidi fee <strong>Rp 1.250 per transaksi</strong> untuk setiap akses penarikan gaji karyawan.
+                </p>
+              </div>
+              <div class="toolbar-actions" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <!-- Filter Periode Bulan -->
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <label for="ewaMonthFilter" style="font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">Filter Bulan:</label>
+                  <select id="ewaMonthFilter" class="filter-select" onchange="onEwaMonthFilterChange()">
+                    <option value="current">Bulan Ini (Berjalan)</option>
+                    <option value="all">Semua Riwayat (All-Time)</option>
+                  </select>
+                </div>
                 <button class="btn btn-secondary btn-sm" onclick="loadWithdrawals()">
                   <span class="material-symbols-rounded">refresh</span>
                   <span>Segarkan</span>
                 </button>
                 <button class="btn btn-danger btn-sm" onclick="clearAllWithdrawals()">
                   <span class="material-symbols-rounded">delete_sweep</span>
-                  <span>Bersihkan Semua Transaksi EWA</span>
+                  <span>Bersihkan Semua</span>
                 </button>
               </div>
             </div>
@@ -314,6 +344,7 @@
                     <th>Ref ID</th>
                     <th>Karyawan & Email</th>
                     <th>Nominal EWA</th>
+                    <th>Fee Subsidi Kantor</th>
                     <th>Rekening Tujuan</th>
                     <th>Waktu Pengajuan</th>
                     <th>Status</th>
@@ -321,7 +352,39 @@
                   </tr>
                 </thead>
                 <tbody id="withdrawalsTableBody">
-                  <tr><td colspan="7" class="table-empty">Memuat riwayat transaksi...</td></tr>
+                  <tr><td colspan="8" class="table-empty">Memuat riwayat transaksi...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Card Arsip & Histori Subsidi Bulanan -->
+          <div class="panel-card" style="margin-top: 20px;">
+            <div class="panel-header table-toolbar">
+              <div>
+                <div class="panel-title-group">
+                  <span class="material-symbols-rounded text-purple">history_toggle_drop_down</span>
+                  <h3 class="panel-title">Histori & Arsip Subsidi Bulanan Perusahaan</h3>
+                </div>
+                <p class="section-subtitle" style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">
+                  Rekap total biaya subsidi Rp 1.250/transaksi per bulan. Histori bulan yang telah lewat tetap tersimpan dan dapat diaudit kapan saja.
+                </p>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="simple-table">
+                <thead>
+                  <tr>
+                    <th>Periode Bulan</th>
+                    <th>Status Periode</th>
+                    <th>Jumlah Transaksi EWA</th>
+                    <th>Total Nominal EWA</th>
+                    <th>Total Subsidi Ditanggung Kantor (Rp 1.250/tx)</th>
+                    <th style="text-align: right;">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="monthlySubsidyTableBody">
+                  <tr><td colspan="6" class="table-empty">Memuat histori bulanan...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -374,6 +437,19 @@
                   <span class="stat-number" id="payrollEmployeesWithdrawn">0</span>
                 </div>
               </div>
+
+              <div class="stat-card">
+                <div class="stat-icon-wrapper amber">
+                  <span class="material-symbols-rounded">volunteer_activism</span>
+                </div>
+                <div class="stat-data">
+                  <span class="stat-caption">Total Subsidi EWA Perusahaan</span>
+                  <span class="stat-number" id="payrollTotalSubsidy">Rp 0</span>
+                  <span style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">
+                    100% Ditanggung Kantor (Rp 1.250/tx)
+                  </span>
+                </div>
+              </div>
             </div>
 
             <div class="table-responsive">
@@ -385,12 +461,13 @@
                     <th>Gaji Pokok Bulanan</th>
                     <th>Total EWA Dicairkan</th>
                     <th>Frekuensi EWA</th>
+                    <th>Subsidi Kantor (Rp 1.250/tx)</th>
                     <th>Sisa Gaji Bersih (Ditransfer Payday)</th>
                     <th>Status Payroll</th>
                   </tr>
                 </thead>
                 <tbody id="payrollTableBody">
-                  <tr><td colspan="7" class="table-empty">Memuat rekap pemotongan payroll...</td></tr>
+                  <tr><td colspan="8" class="table-empty">Memuat rekap pemotongan payroll...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -419,109 +496,6 @@
 
             <div id="edukasiVideoGrid" class="video-grid">
               <div class="table-empty" style="padding: 40px; text-align: center; color: var(--text-muted);">Memuat video edukasi...</div>
-            </div>
-          </div>
-        </section>
-
-        <!-- SECTION 6: PINJAMAN KARYAWAN -->
-        <section id="sectionLoans" class="content-section">
-          <!-- Stats row for loans -->
-          <div class="stats-grid" style="margin-bottom: 24px;">
-            <div class="stat-card">
-              <div class="stat-icon-wrapper amber">
-                <span class="material-symbols-rounded">pending_actions</span>
-              </div>
-              <div class="stat-data">
-                <span class="stat-caption">Perlu Ditinjau HRD</span>
-                <span class="stat-number" id="loansStatPending">1</span>
-              </div>
-            </div>
-
-            <div class="stat-card">
-              <div class="stat-icon-wrapper mint">
-                <span class="material-symbols-rounded">check_circle</span>
-              </div>
-              <div class="stat-data">
-                <span class="stat-caption">Pinjaman Disetujui (Aktif)</span>
-                <span class="stat-number" id="loansStatApproved">1</span>
-              </div>
-            </div>
-
-            <div class="stat-card">
-              <div class="stat-icon-wrapper purple">
-                <span class="material-symbols-rounded">payments</span>
-              </div>
-              <div class="stat-data">
-                <span class="stat-caption">Total Pokok Tersalurkan</span>
-                <span class="stat-number" id="loansStatTotalDisbursed">Rp 1.000.000</span>
-              </div>
-            </div>
-
-            <div class="stat-card">
-              <div class="stat-icon-wrapper blue">
-                <span class="material-symbols-rounded">account_balance</span>
-              </div>
-              <div class="stat-data">
-                <span class="stat-caption">Potongan Payroll Bulan Ini</span>
-                <span class="stat-number" id="loansStatPayrollDeduction">Rp 1.010.000</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Panel Table Pinjaman -->
-          <div class="panel-card">
-            <div class="panel-header table-toolbar" style="flex-wrap: wrap; gap: 14px;">
-              <div class="search-box">
-                <span class="material-symbols-rounded">search</span>
-                <input type="text" id="loanSearchInput" placeholder="Cari nama karyawan, ID pinjaman, divisi..." oninput="filterLoans()">
-              </div>
-
-              <!-- Filter tabs -->
-              <div class="filter-group" style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <button class="btn btn-sm btn-filter active" id="filterLoanAll" onclick="setLoanStatusFilter('ALL')">Semua (<span id="countLoanAll">0</span>)</button>
-                <button class="btn btn-sm btn-filter" id="filterLoanPending" onclick="setLoanStatusFilter('PENDING')">Perlu Review (<span id="countLoanPending">0</span>)</button>
-                <button class="btn btn-sm btn-filter" id="filterLoanApproved" onclick="setLoanStatusFilter('APPROVED')">Disetujui (<span id="countLoanApproved">0</span>)</button>
-                <button class="btn btn-sm btn-filter" id="filterLoanRejected" onclick="setLoanStatusFilter('REJECTED')">Ditolak (<span id="countLoanRejected">0</span>)</button>
-                <button class="btn btn-sm btn-filter" id="filterLoanPaid" onclick="setLoanStatusFilter('PAID_OFF')">Lunas (<span id="countLoanPaid">0</span>)</button>
-              </div>
-
-              <div class="toolbar-actions" style="display: flex; gap: 10px; align-items: center;">
-                <select id="loanMethodFilter" class="btn btn-secondary btn-sm" onchange="filterLoans()" style="background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border-subtle); outline: none;">
-                  <option value="ALL">Semua Skema</option>
-                  <option value="PAYROLL_DEDUCTION">Potong Gaji Otomatis</option>
-                  <option value="DIRECT_TRANSFER">Cicilan Mandiri</option>
-                </select>
-                <button class="btn btn-secondary btn-sm" onclick="loadLoans(true)">
-                  <span class="material-symbols-rounded">sync</span>
-                  <span>Refresh Data</span>
-                </button>
-                <button class="btn btn-danger btn-sm" onclick="clearAllLoans()">
-                  <span class="material-symbols-rounded">delete_sweep</span>
-                  <span>Bersihkan Semua Pinjaman</span>
-                </button>
-              </div>
-            </div>
-
-            <div class="table-responsive">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Ref ID</th>
-                    <th>Karyawan</th>
-                    <th>Pokok Pinjaman</th>
-                    <th>Tenor & Bunga (1%/bln)</th>
-                    <th>Cicilan / Bln</th>
-                    <th>Skema Pelunasan</th>
-                    <th>Keperluan</th>
-                    <th>Status</th>
-                    <th>Tanggal</th>
-                    <th style="text-align: center;">Aksi HRD</th>
-                  </tr>
-                </thead>
-                <tbody id="loansTableBody">
-                  <tr><td colspan="10" class="table-empty">Memuat data pinjaman...</td></tr>
-                </tbody>
-              </table>
             </div>
           </div>
         </section>
@@ -816,109 +790,6 @@
           </button>
         </div>
       </form>
-    </div>
-  </div>
-
-  <!-- MODAL: DETAIL & VALIDASI PINJAMAN -->
-  <div class="modal-backdrop" id="reviewLoanModal">
-    <div class="modal-dialog" style="max-width: 620px;">
-      <div class="modal-header">
-        <div class="modal-title-group">
-          <span class="material-symbols-rounded text-purple">handshake</span>
-          <h3 id="modalReviewLoanTitle">Validasi Pinjaman Karyawan</h3>
-        </div>
-        <button class="btn-close" onclick="closeModal('reviewLoanModal')">
-          <span class="material-symbols-rounded">close</span>
-        </button>
-      </div>
-
-      <div class="modal-body" id="reviewLoanModalBody">
-        <!-- Filled dynamically -->
-      </div>
-
-      <div class="modal-footer" style="justify-content: space-between;">
-        <button type="button" class="btn btn-danger btn-sm" onclick="triggerRejectFromReview()">
-          <span class="material-symbols-rounded">close</span>
-          <span>Tolak Pengajuan</span>
-        </button>
-        <div style="display: flex; gap: 8px;">
-          <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('reviewLoanModal')">Tutup</button>
-          <button type="button" class="btn btn-primary btn-sm" id="btnApproveLoanConfirm" onclick="handleApproveLoan()">
-            <span class="material-symbols-rounded">check</span>
-            <span>Setujui & Cairkan Sekarang</span>
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL: ALASAN PENOLAKAN PINJAMAN -->
-  <div class="modal-backdrop" id="rejectLoanModal">
-    <div class="modal-dialog" style="max-width: 480px;">
-      <div class="modal-header">
-        <div class="modal-title-group">
-          <span class="material-symbols-rounded text-danger">cancel</span>
-          <h3>Tolak Permohonan Pinjaman</h3>
-        </div>
-        <button class="btn-close" onclick="closeModal('rejectLoanModal')">
-          <span class="material-symbols-rounded">close</span>
-        </button>
-      </div>
-
-      <div class="modal-body">
-        <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px;">
-          Pilih atau ketik alasan penolakan yang akan dikirimkan ke karyawan via aplikasi Cashper:
-        </p>
-
-        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
-          <button type="button" class="btn btn-secondary btn-sm" style="text-align: left; justify-content: flex-start;" onclick="setRejectReason('Plafon maksimal pinjaman aktif tercapai')">
-            ● Plafon maksimal pinjaman aktif tercapai
-          </button>
-          <button type="button" class="btn btn-secondary btn-sm" style="text-align: left; justify-content: flex-start;" onclick="setRejectReason('Masa kerja belum memenuhi syarat minimum pinjaman perusahaan')">
-            ● Masa kerja belum memenuhi syarat minimum
-          </button>
-          <button type="button" class="btn btn-secondary btn-sm" style="text-align: left; justify-content: flex-start;" onclick="setRejectReason('Keterangan atau dokumen pendukung belum lengkap')">
-            ● Keterangan atau dokumen pendukung belum lengkap
-          </button>
-        </div>
-
-        <div class="form-group full-width">
-          <label>Keterangan Penolakan HRD <span class="required">*</span></label>
-          <textarea id="loanRejectReasonInput" rows="3" style="width:100%; background:var(--bg-input); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:10px 12px; color:var(--text-main); font-family:var(--font-body); font-size:0.88rem; resize:vertical;" placeholder="Tuliskan alasan penolakan..."></textarea>
-        </div>
-      </div>
-
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" onclick="closeModal('rejectLoanModal')">Batal</button>
-        <button type="button" class="btn btn-danger" onclick="handleConfirmRejectLoan()">Konfirmasi Tolak</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL: CETAK SLIP PERSETUJUAN PINJAMAN -->
-  <div class="modal-backdrop" id="slipLoanModal">
-    <div class="modal-dialog" style="max-width: 660px;">
-      <div class="modal-header">
-        <div class="modal-title-group">
-          <span class="material-symbols-rounded text-purple">receipt</span>
-          <h3>Surat Bukti Persetujuan Pinjaman</h3>
-        </div>
-        <button class="btn-close" onclick="closeModal('slipLoanModal')">
-          <span class="material-symbols-rounded">close</span>
-        </button>
-      </div>
-
-      <div class="modal-body" id="slipLoanPrintableArea" style="background: #ffffff; color: #0F172A; border-radius: 8px; padding: 20px; font-family: 'Inter', sans-serif;">
-        <!-- Printable Slip Content -->
-      </div>
-
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" onclick="closeModal('slipLoanModal')">Tutup</button>
-        <button type="button" class="btn btn-primary" onclick="window.print()">
-          <span class="material-symbols-rounded">print</span>
-          <span>Cetak Dokumen</span>
-        </button>
-      </div>
     </div>
   </div>
 

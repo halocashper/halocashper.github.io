@@ -13,6 +13,9 @@ let allEmployees = [];
 let allWithdrawals = [];
 let allEdukasiVideos = [];
 
+const EWA_SUBSIDY_FEE_PER_TX = 1250; // Fee subsidi perusahaan per transaksi EWA (Rp 1.250 / tx)
+let selectedEwaMonthFilter = 'current'; // 'current' (bulan berjalan), 'all', atau 'YYYY-MM'
+
 const SUPABASE_URL = DEFAULT_CONFIG.url.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
 const STORAGE_BUCKET = 'edukasi-videos';
 
@@ -21,8 +24,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initSupabase();
   loadEmployees();
   loadWithdrawals();
-  loadLoans();
-  loadLoansOverview();
 });
 
 // -------------------------------------------------------------------
@@ -32,15 +33,6 @@ function initSupabase() {
   try {
     const cleanUrl = DEFAULT_CONFIG.url.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
     supabaseClient = window.supabase.createClient(cleanUrl, DEFAULT_CONFIG.anonKey);
-    // Realtime listener jika ada pengajuan pinjaman baru dari aplikasi mobile
-    try {
-      supabaseClient
-        .channel('company_loans_realtime')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'company_loans' }, () => {
-          loadLoans();
-        })
-        .subscribe();
-    } catch (_) {}
   } catch (err) {
     console.error('Supabase initialization failed:', err);
     showToast('Gagal memuat client Supabase', 'error');
@@ -72,7 +64,6 @@ function navigate(sectionId) {
     overview: 'Dashboard Ringkasan',
     employees: 'Data & Direktori Karyawan',
     withdrawals: 'Riwayat Transaksi EWA',
-    loans: 'Persetujuan & Manajemen Pinjaman Karyawan',
     payroll: 'Rekap Pemotongan Payroll',
     edukasi: 'Manajemen Video Edukasi'
   };
@@ -81,7 +72,6 @@ function navigate(sectionId) {
     overview: 'navOverview',
     employees: 'navEmployees',
     withdrawals: 'navWithdrawals',
-    loans: 'navLoans',
     payroll: 'navPayroll',
     edukasi: 'navEdukasi'
   };
@@ -97,13 +87,11 @@ function navigate(sectionId) {
   // Refresh data on navigation
   if (sectionId === 'employees') loadEmployees();
   if (sectionId === 'withdrawals') loadWithdrawals();
-  if (sectionId === 'loans') loadLoans();
   if (sectionId === 'payroll') loadPayrollRecap();
   if (sectionId === 'edukasi') loadEdukasiVideos();
   if (sectionId === 'overview') {
     loadEmployees();
     loadWithdrawals();
-    loadLoansOverview();
   }
 
   // Close mobile sidebar if open
@@ -170,7 +158,7 @@ function renderEmployeesTable(list) {
 
   tbody.innerHTML = list.map(emp => {
     const maskedAcc = emp.bank_account_number
-      ? emp.bank_account_number.slice(0, 3) + '••••' + emp.bank_account_number.slice(-3)
+      ? emp.bank_account_number.slice(0, 3) + 'â€¢â€¢â€¢â€¢' + emp.bank_account_number.slice(-3)
       : '-';
 
     const statusBadge = emp.is_active
@@ -452,14 +440,39 @@ async function toggleEmployeeStatus(empId, currentActive) {
 }
 
 // -------------------------------------------------------------------
-// 5. Withdrawals Management
 // -------------------------------------------------------------------
+// 5. Withdrawals & Subsidi Management (Rp 1.250 / tx)
+// -------------------------------------------------------------------
+function getYearMonthKey(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+}
+
+function getCurrentYearMonthKey() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+}
+
+function formatMonthYearLabel(ymKey) {
+  if (!ymKey) return '-';
+  const parts = ymKey.split('-');
+  if (parts.length !== 2) return ymKey;
+  const d = new Date(Number(parts[0]), Number(parts[1]) - 1, 1);
+  return d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+}
+
 async function loadWithdrawals() {
   const tbodyFull = document.getElementById('withdrawalsTableBody');
   const tbodyOverview = document.getElementById('overviewWithdrawalsBody');
 
-  tbodyFull.innerHTML = '<tr><td colspan="8" class="table-empty">Memuat transaksi...</td></tr>';
-  tbodyOverview.innerHTML = '<tr><td colspan="5" class="table-empty">Memuat transaksi...</td></tr>';
+  if (tbodyFull) tbodyFull.innerHTML = '<tr><td colspan="8" class="table-empty">Memuat transaksi...</td></tr>';
+  if (tbodyOverview) tbodyOverview.innerHTML = '<tr><td colspan="4" class="table-empty">Memuat transaksi...</td></tr>';
 
   try {
     // Call admin_get_withdrawals RPC
@@ -474,7 +487,7 @@ async function loadWithdrawals() {
         .from('ewa_withdrawals')
         .select('id, reference_id, amount, fee, net_amount, bank_name, bank_account_masked, status, created_at, employees(full_name, email)')
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(1000);
 
       if (error) throw error;
       list = (data || []).map(w => ({
@@ -493,22 +506,126 @@ async function loadWithdrawals() {
     }
 
     allWithdrawals = list;
-    renderWithdrawalsTable(allWithdrawals);
+
+    // Inisialisasi dropdown filter bulan & kalkulasi tampilan
+    populateEwaMonthFilter();
+    applyEwaFilterAndRender();
+    renderMonthlySubsidyArchive();
     renderOverviewWithdrawals(allWithdrawals.slice(0, 5));
     updateOverviewStats();
 
   } catch (err) {
     console.error('loadWithdrawals error:', err);
-    tbodyFull.innerHTML = `<tr><td colspan="8" class="table-empty text-red">Gagal memuat: ${escapeHtml(err.message)}</td></tr>`;
-    tbodyOverview.innerHTML = `<tr><td colspan="5" class="table-empty text-red">Gagal memuat transaksi</td></tr>`;
+    if (tbodyFull) tbodyFull.innerHTML = `<tr><td colspan="8" class="table-empty text-red">Gagal memuat: ${escapeHtml(err.message)}</td></tr>`;
+    if (tbodyOverview) tbodyOverview.innerHTML = `<tr><td colspan="4" class="table-empty text-red">Gagal memuat transaksi</td></tr>`;
   }
+}
+
+function populateEwaMonthFilter() {
+  const filterSelect = document.getElementById('ewaMonthFilter');
+  if (!filterSelect) return;
+
+  const currentYm = getCurrentYearMonthKey();
+  const currentLabel = formatMonthYearLabel(currentYm);
+
+  // Kumpulkan unique YYYY-MM dari seluruh data transaksi
+  const monthsSet = new Set();
+  allWithdrawals.forEach(w => {
+    const ym = getYearMonthKey(w.created_at);
+    if (ym) monthsSet.add(ym);
+  });
+
+  const sortedMonths = Array.from(monthsSet).sort().reverse();
+
+  let html = `
+    <option value="current">Bulan Ini (${currentLabel})</option>
+    <option value="all">Semua Riwayat (All-Time)</option>
+  `;
+
+  sortedMonths.forEach(ym => {
+    if (ym !== currentYm) {
+      html += `<option value="${ym}">${formatMonthYearLabel(ym)}</option>`;
+    }
+  });
+
+  filterSelect.innerHTML = html;
+  filterSelect.value = selectedEwaMonthFilter;
+}
+
+function onEwaMonthFilterChange() {
+  const filterSelect = document.getElementById('ewaMonthFilter');
+  if (!filterSelect) return;
+  selectedEwaMonthFilter = filterSelect.value;
+  applyEwaFilterAndRender();
+}
+
+function filterEwaByMonth(ym) {
+  selectedEwaMonthFilter = ym;
+  const filterSelect = document.getElementById('ewaMonthFilter');
+  if (filterSelect) {
+    filterSelect.value = ym;
+  }
+  applyEwaFilterAndRender();
+
+  const sec = document.getElementById('sectionWithdrawals');
+  if (sec) {
+    sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+function applyEwaFilterAndRender() {
+  const currentYm = getCurrentYearMonthKey();
+
+  // 1. Transaksi Bulan Berjalan (Reset tiap pergantian bulan baru)
+  const currentMonthTx = allWithdrawals.filter(w => getYearMonthKey(w.created_at) === currentYm);
+  const currentMonthSubsidy = currentMonthTx.length * EWA_SUBSIDY_FEE_PER_TX;
+
+  const currentSubsidyEl = document.getElementById('ewaSubsidyCurrentMonth');
+  const currentCountEl = document.getElementById('ewaCountCurrentMonth');
+  if (currentSubsidyEl) currentSubsidyEl.textContent = formatRupiah(currentMonthSubsidy);
+  if (currentCountEl) currentCountEl.textContent = currentMonthTx.length;
+
+  // 2. Transaksi Sesuai Filter Pilihan
+  let filteredList = [];
+  let periodLabel = 'Bulan Berjalan';
+
+  if (selectedEwaMonthFilter === 'current') {
+    filteredList = currentMonthTx;
+    periodLabel = formatMonthYearLabel(currentYm);
+  } else if (selectedEwaMonthFilter === 'all') {
+    filteredList = allWithdrawals;
+    periodLabel = 'Semua Waktu';
+  } else {
+    filteredList = allWithdrawals.filter(w => getYearMonthKey(w.created_at) === selectedEwaMonthFilter);
+    periodLabel = formatMonthYearLabel(selectedEwaMonthFilter);
+  }
+
+  const selectedSubsidy = filteredList.length * EWA_SUBSIDY_FEE_PER_TX;
+  const selectedSubsidyEl = document.getElementById('ewaSubsidySelectedPeriod');
+  const selectedCountEl = document.getElementById('ewaCountSelectedPeriod');
+  const selectedLabelEl = document.getElementById('ewaSelectedPeriodLabel');
+
+  if (selectedSubsidyEl) selectedSubsidyEl.textContent = formatRupiah(selectedSubsidy);
+  if (selectedCountEl) selectedCountEl.textContent = filteredList.length;
+  if (selectedLabelEl) selectedLabelEl.textContent = periodLabel;
+
+  // 3. Total Akumulasi Seluruh Waktu
+  const allTimeSubsidy = allWithdrawals.length * EWA_SUBSIDY_FEE_PER_TX;
+  const allTimeSubsidyEl = document.getElementById('ewaSubsidyAllTime');
+  const allTimeCountEl = document.getElementById('ewaCountAllTime');
+  if (allTimeSubsidyEl) allTimeSubsidyEl.textContent = formatRupiah(allTimeSubsidy);
+  if (allTimeCountEl) allTimeCountEl.textContent = allWithdrawals.length;
+
+  // Render Tabel
+  renderWithdrawalsTable(filteredList);
 }
 
 function renderWithdrawalsTable(list) {
   const tbody = document.getElementById('withdrawalsTableBody');
+  if (!tbody) return;
 
   if (!list || list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="table-empty">Belum ada transaksi pencairan EWA.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="table-empty">Belum ada transaksi pencairan EWA pada periode ini.</td></tr>';
     return;
   }
 
@@ -526,12 +643,19 @@ function renderWithdrawalsTable(list) {
 
     return `
       <tr>
-        <td><code>${escapeHtml(w.reference_id || w.id.substring(0, 8))}</code></td>
+        <td><code>${escapeHtml(w.reference_id || (w.id ? w.id.substring(0, 8) : '-'))}</code></td>
         <td>
           <div class="emp-name">${escapeHtml(w.employee_name || '-')}</div>
           <div class="emp-sub">${escapeHtml(w.email || '-')}</div>
         </td>
         <td class="emp-salary"><strong>${formatRupiah(w.amount)}</strong></td>
+        <td>
+          <div class="subsidy-badge">
+            <span class="material-symbols-rounded" style="font-size: 13px;">check_circle</span>
+            <span>Rp 1.250</span>
+          </div>
+          <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">Disubsidi Kantor</div>
+        </td>
         <td>${escapeHtml(w.bank_name || '-')} (${escapeHtml(w.bank_account_masked || '-')})</td>
         <td class="emp-sub">${formatDateTime(w.created_at)}</td>
         <td><span class="status-tag ${statusClass}">${statusLabel}</span></td>
@@ -541,8 +665,69 @@ function renderWithdrawalsTable(list) {
   }).join('');
 }
 
+function renderMonthlySubsidyArchive() {
+  const tbody = document.getElementById('monthlySubsidyTableBody');
+  if (!tbody) return;
+
+  const currentYm = getCurrentYearMonthKey();
+
+  // Group withdrawals per YYYY-MM
+  const monthMap = {};
+  monthMap[currentYm] = []; // Pastikan bulan berjalan selalu ada di baris pertama
+
+  allWithdrawals.forEach(w => {
+    const ym = getYearMonthKey(w.created_at);
+    if (!ym) return;
+    if (!monthMap[ym]) {
+      monthMap[ym] = [];
+    }
+    monthMap[ym].push(w);
+  });
+
+  const sortedMonths = Object.keys(monthMap).sort().reverse();
+
+  if (sortedMonths.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="table-empty">Belum ada riwayat subsidi bulanan.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = sortedMonths.map(ym => {
+    const txList = monthMap[ym] || [];
+    const count = txList.length;
+    const totalAmount = txList.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const totalSubsidy = count * EWA_SUBSIDY_FEE_PER_TX;
+    const isCurrent = ym === currentYm;
+
+    const statusBadge = isCurrent
+      ? `<span class="status-tag active"><span class="material-symbols-rounded" style="font-size: 13px;">schedule</span> Bulan Berjalan</span>`
+      : `<span class="status-tag" style="background: var(--border-subtle); color: var(--text-muted);"><span class="material-symbols-rounded" style="font-size: 13px;">archive</span> Arsip Terlewati</span>`;
+
+    const actionButton = `
+      <button class="btn btn-secondary btn-sm" onclick="filterEwaByMonth('${ym}')" title="Filter transaksi bulan ini">
+        <span class="material-symbols-rounded" style="font-size: 14px;">visibility</span>
+        <span>Lihat Transaksi</span>
+      </button>
+    `;
+
+    return `
+      <tr>
+        <td><strong>${formatMonthYearLabel(ym)}</strong></td>
+        <td>${statusBadge}</td>
+        <td>${count} Transaksi</td>
+        <td>${formatRupiah(totalAmount)}</td>
+        <td>
+          <strong class="text-green">${formatRupiah(totalSubsidy)}</strong>
+          <div style="font-size: 0.7rem; color: var(--text-muted);">Rp 1.250 × ${count} tx</div>
+        </td>
+        <td style="text-align: right;">${actionButton}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
 function renderOverviewWithdrawals(list) {
   const tbody = document.getElementById('overviewWithdrawalsBody');
+  if (!tbody) return;
 
   if (!list || list.length === 0) {
     tbody.innerHTML = '<tr><td colspan="4" class="table-empty">Belum ada riwayat transaksi EWA.</td></tr>';
@@ -584,6 +769,17 @@ function updateOverviewStats() {
 
   if (totalWitEl) totalWitEl.textContent = totalDisbursedCount;
   if (totalAmtEl) totalAmtEl.textContent = formatRupiah(totalDisbursedAmount);
+
+  // Subsidi Bulan Ini di Overview
+  const currentYm = getCurrentYearMonthKey();
+  const currentMonthTx = allWithdrawals.filter(w => getYearMonthKey(w.created_at) === currentYm);
+  const currentSubsidy = currentMonthTx.length * EWA_SUBSIDY_FEE_PER_TX;
+
+  const overviewSubsidyEl = document.getElementById('overviewMonthlySubsidy');
+  const overviewSubsidyCountEl = document.getElementById('overviewMonthlySubsidyTxCount');
+
+  if (overviewSubsidyEl) overviewSubsidyEl.textContent = formatRupiah(currentSubsidy);
+  if (overviewSubsidyCountEl) overviewSubsidyCountEl.textContent = currentMonthTx.length;
 }
 
 // Mark pending withdrawal as success (Tersalurkan)
@@ -639,7 +835,7 @@ async function clearAllWithdrawals() {
 // -------------------------------------------------------------------
 async function loadPayrollRecap() {
   const tbody = document.getElementById('payrollTableBody');
-  tbody.innerHTML = '<tr><td colspan="7" class="table-empty">Menghitung rekap payroll karyawan...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="8" class="table-empty">Menghitung rekap payroll karyawan...</td></tr>';
 
   // Make sure both employees and withdrawals are loaded
   if (allEmployees.length === 0) {
@@ -650,13 +846,14 @@ async function loadPayrollRecap() {
   }
 
   if (allEmployees.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="table-empty">Belum ada data karyawan.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="table-empty">Belum ada data karyawan.</td></tr>';
     return;
   }
 
   let totalDeductionAll = 0;
   let totalNetPayAll = 0;
   let activeEwaCount = 0;
+  let totalSubsidyMonthAll = 0;
 
   const rows = allEmployees.map(emp => {
     const isCompany = emp.email && emp.email.toLowerCase() === 'halo.cashper@gmail.com';
@@ -675,6 +872,7 @@ async function loadPayrollRecap() {
           <td>-</td>
           <td>-</td>
           <td>-</td>
+          <td>-</td>
           <td><span class="status-tag" style="background:var(--border-subtle); color:var(--text-muted);">Non-EWA</span></td>
         </tr>
       `;
@@ -688,11 +886,13 @@ async function loadPayrollRecap() {
 
     const totalEwa = empWithdrawals.reduce((sum, w) => sum + Number(w.amount || 0), 0);
     const countEwa = empWithdrawals.length;
+    const employeeSubsidy = countEwa * EWA_SUBSIDY_FEE_PER_TX;
     const baseSalary = Number(emp.base_salary || 4000000);
     const netPayday = Math.max(0, baseSalary - totalEwa);
 
     totalDeductionAll += totalEwa;
     totalNetPayAll += netPayday;
+    totalSubsidyMonthAll += employeeSubsidy;
     if (countEwa > 0) activeEwaCount++;
 
     const statusBadge = countEwa > 0
@@ -712,6 +912,10 @@ async function loadPayrollRecap() {
         <td><strong>${formatRupiah(baseSalary)}</strong></td>
         <td><strong class="text-purple">${formatRupiah(totalEwa)}</strong></td>
         <td>${countEwa}x Akses</td>
+        <td>
+          <strong class="text-green">${formatRupiah(employeeSubsidy)}</strong>
+          <div class="emp-sub" style="font-size: 0.7rem; color: var(--text-muted);">Ditanggung Kantor</div>
+        </td>
         <td><strong class="text-green">${formatRupiah(netPayday)}</strong></td>
         <td>${statusBadge}</td>
       </tr>
@@ -722,12 +926,12 @@ async function loadPayrollRecap() {
 
   // Update Summary Metrics
   const deductionEl = document.getElementById('payrollTotalDeduction');
-  const netPayEl = document.getElementById('payrollTotalNetPay');
   const countEl = document.getElementById('payrollEmployeesWithdrawn');
+  const subsidyEl = document.getElementById('payrollTotalSubsidy');
 
   if (deductionEl) deductionEl.textContent = formatRupiah(totalDeductionAll);
-  if (netPayEl) netPayEl.textContent = formatRupiah(totalNetPayAll);
   if (countEl) countEl.textContent = `${activeEwaCount} Karyawan`;
+  if (subsidyEl) subsidyEl.textContent = formatRupiah(totalSubsidyMonthAll);
 }
 
 function copyPayrollRecap() {
@@ -736,24 +940,41 @@ function copyPayrollRecap() {
     return;
   }
 
+  const currentYm = getCurrentYearMonthKey();
   let text = `REKAP PEMOTONGAN GAJI (PAYROLL DEDUCTION) - CASHPER\n`;
-  text += `Periode: Bulan Berjalan\n`;
-  text += `------------------------------------------------------------\n`;
-  text += `Nama | Gaji Pokok | Total EWA Dicairkan | Sisa Ditransfer Payday\n`;
-  text += `------------------------------------------------------------\n`;
+  text += `Periode: ${formatMonthYearLabel(currentYm)}\n`;
+  text += `Biaya Subsidi Kantor: Rp 1.250 / transaksi EWA (Ditanggung Perusahaan)\n`;
+  text += `--------------------------------------------------------------------------------\n`;
+  text += `Nama | Gaji Pokok | Total EWA Dicairkan | Subsidi Kantor | Sisa Ditransfer Payday\n`;
+  text += `--------------------------------------------------------------------------------\n`;
+
+  let totalSubsidyAll = 0;
+  let totalEwaAll = 0;
 
   allEmployees.forEach(emp => {
+    const isCompany = emp.email && emp.email.toLowerCase() === 'halo.cashper@gmail.com';
+    if (isCompany) return;
+
     const empWithdrawals = allWithdrawals.filter(w => 
       (w.email && emp.email && w.email.toLowerCase() === emp.email.toLowerCase()) ||
       (w.employee_name && emp.full_name && w.employee_name.toLowerCase() === emp.full_name.toLowerCase())
     );
     const totalEwa = empWithdrawals.reduce((sum, w) => sum + Number(w.amount || 0), 0);
+    const count = empWithdrawals.length;
+    const sub = count * EWA_SUBSIDY_FEE_PER_TX;
     const base = Number(emp.base_salary || 0);
     const net = Math.max(0, base - totalEwa);
-    text += `${emp.full_name} | ${formatRupiah(base)} | ${formatRupiah(totalEwa)} | ${formatRupiah(net)}\n`;
+
+    totalEwaAll += totalEwa;
+    totalSubsidyAll += sub;
+
+    text += `${emp.full_name} | ${formatRupiah(base)} | ${formatRupiah(totalEwa)} | ${formatRupiah(sub)} | ${formatRupiah(net)}\n`;
   });
 
-  text += `------------------------------------------------------------\n`;
+  text += `--------------------------------------------------------------------------------\n`;
+  text += `TOTAL POTONGAN EWA DARI KARYAWAN : ${formatRupiah(totalEwaAll)}\n`;
+  text += `TOTAL SUBSIDI DITANGGUNG KANTOR   : ${formatRupiah(totalSubsidyAll)} (0 Potong Gaji)\n`;
+  text += `--------------------------------------------------------------------------------\n`;
 
   navigator.clipboard.writeText(text).then(() => {
     showToast('Rekap payroll berhasil disalin ke clipboard!', 'success');
@@ -1018,7 +1239,7 @@ function renderEdukasiGrid(list) {
         <div class="video-card-body">
           <div class="video-card-title">${escapeHtml(v.judul)}</div>
           
-          <div class="video-card-subinfo">Cashper Edukasi • Keuangan</div>
+          <div class="video-card-subinfo">Cashper Edukasi â€¢ Keuangan</div>
 
           <div class="video-channel-row">
             <div class="video-channel-avatar">C</div>
@@ -1279,587 +1500,5 @@ async function deleteEdukasiVideo(videoId, storagePath, thumbUrl) {
     loadEdukasiVideos();
   } catch (err) {
     showToast('Gagal menghapus: ' + err.message, 'error');
-  }
-}
-
-// -------------------------------------------------------------------
-// 9. Pinjaman Karyawan Management & HR Approval Workflow
-// -------------------------------------------------------------------
-const STORAGE_KEY_LOANS = 'cashper_hr_loans_db';
-
-const INITIAL_WEB_LOANS = [];
-
-let allLoans = [];
-let currentLoanFilterStatus = 'ALL';
-let activeLoanInReviewId = null;
-
-function mapSupabaseLoanToModel(row) {
-  return {
-    id: row.id,
-    employeeName: row.employee_name || 'Surya',
-    employeeRole: row.employee_role || 'Staff Operasional',
-    baseSalary: Number(row.base_salary || 4000000),
-    amount: Number(row.amount || 0),
-    tenorMonths: Number(row.tenor_months || 1),
-    interestRateMonthly: Number(row.interest_rate_monthly || 0.01),
-    totalInterest: Number(row.total_interest || 0),
-    totalRepayment: Number(row.total_repayment || 0),
-    monthlyInstallment: Number(row.monthly_installment || 0),
-    reasonCategory: row.reason_category || 'Kebutuhan Mendesak Awal Bulan',
-    notes: row.notes || '-',
-    status: row.status || 'PENDING',
-    appliedDate: row.applied_date || '-',
-    approvedDate: row.approved_date || null,
-    rejectionReason: row.rejection_reason || null,
-    paymentMethod: row.payment_method || 'PAYROLL_DEDUCTION',
-    remainingBalance: Number(row.remaining_balance || 0)
-  };
-}
-
-function getStoredLoans() {
-  const saved = localStorage.getItem(STORAGE_KEY_LOANS);
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved);
-      // Bersihkan data dummy lama (LOAN-1001, LOAN-0942, LOAN-0870) jika masih tersimpan di browser
-      const cleaned = parsed.filter(l => l.id !== 'LOAN-1001' && l.id !== 'LOAN-0942' && l.id !== 'LOAN-0870');
-      if (cleaned.length !== parsed.length) {
-        localStorage.setItem(STORAGE_KEY_LOANS, JSON.stringify(cleaned));
-      }
-      return cleaned;
-    } catch (e) {
-      return [];
-    }
-  }
-  return [];
-}
-
-function saveStoredLoans(data) {
-  allLoans = data;
-  localStorage.setItem(STORAGE_KEY_LOANS, JSON.stringify(data));
-  updateLoanStatsAndBadges();
-  renderLoansTable(getFilteredLoans());
-  loadLoansOverview();
-}
-
-function updateLoanStatsAndBadges() {
-  const pendingCount = allLoans.filter(l => l.status === 'PENDING').length;
-  const approvedCount = allLoans.filter(l => l.status === 'APPROVED').length;
-  const totalDisbursed = allLoans
-    .filter(l => l.status === 'APPROVED' || l.status === 'PAID_OFF')
-    .reduce((sum, l) => sum + Number(l.amount || 0), 0);
-  const payrollDeduction = allLoans
-    .filter(l => l.status === 'APPROVED' && l.paymentMethod === 'PAYROLL_DEDUCTION')
-    .reduce((sum, l) => sum + Number(l.monthlyInstallment || 0), 0);
-
-  // Update Section 6 Stats
-  const statPendingEl = document.getElementById('loansStatPending');
-  const statApprovedEl = document.getElementById('loansStatApproved');
-  const statDisbursedEl = document.getElementById('loansStatTotalDisbursed');
-  const statPayrollEl = document.getElementById('loansStatPayrollDeduction');
-
-  if (statPendingEl) statPendingEl.textContent = pendingCount;
-  if (statApprovedEl) statApprovedEl.textContent = approvedCount;
-  if (statDisbursedEl) statDisbursedEl.textContent = formatRupiah(totalDisbursed);
-  if (statPayrollEl) statPayrollEl.textContent = formatRupiah(payrollDeduction);
-
-  // Update counts in filter buttons
-  const cAll = document.getElementById('countLoanAll');
-  const cPending = document.getElementById('countLoanPending');
-  const cApproved = document.getElementById('countLoanApproved');
-  const cRejected = document.getElementById('countLoanRejected');
-  const cPaid = document.getElementById('countLoanPaid');
-
-  if (cAll) cAll.textContent = allLoans.length;
-  if (cPending) cPending.textContent = pendingCount;
-  if (cApproved) cApproved.textContent = approvedCount;
-  if (cRejected) cRejected.textContent = allLoans.filter(l => l.status === 'REJECTED').length;
-  if (cPaid) cPaid.textContent = allLoans.filter(l => l.status === 'PAID_OFF').length;
-
-  // Sidebar badge
-  const navBadge = document.getElementById('badgeLoansNav');
-  if (navBadge) {
-    if (pendingCount > 0) {
-      navBadge.style.display = 'inline-block';
-      navBadge.textContent = pendingCount;
-    } else {
-      navBadge.style.display = 'none';
-    }
-  }
-}
-
-async function loadLoans(showFeedback = false) {
-  if (supabaseClient) {
-    try {
-      const { data, error } = await supabaseClient
-        .from('company_loans')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (!error && Array.isArray(data)) {
-        allLoans = data.map(mapSupabaseLoanToModel);
-        localStorage.setItem(STORAGE_KEY_LOANS, JSON.stringify(allLoans));
-        updateLoanStatsAndBadges();
-        renderLoansTable(getFilteredLoans());
-        loadLoansOverview();
-        if (showFeedback) showToast('Data pengajuan pinjaman berhasil diperbarui dari Supabase!', 'success');
-        return;
-      } else if (error && showFeedback) {
-        console.warn('Supabase company_loans error:', error);
-        showToast('Tabel company_loans belum ada di Supabase. Jalankan script supabase/company_loans.sql di SQL Editor.', 'error');
-      }
-    } catch (e) {
-      console.warn('Gagal memuat pinjaman dari Supabase:', e);
-      if (showFeedback) showToast('Gagal memuat: ' + e.message, 'error');
-    }
-  }
-
-  allLoans = getStoredLoans();
-  updateLoanStatsAndBadges();
-  renderLoansTable(getFilteredLoans());
-  loadLoansOverview();
-}
-
-function getFilteredLoans() {
-  const query = (document.getElementById('loanSearchInput')?.value || '').trim().toLowerCase();
-  const methodFilter = document.getElementById('loanMethodFilter')?.value || 'ALL';
-
-  return allLoans.filter(l => {
-    if (currentLoanFilterStatus !== 'ALL' && l.status !== currentLoanFilterStatus) return false;
-    if (methodFilter !== 'ALL' && l.paymentMethod !== methodFilter) return false;
-    if (query) {
-      const matchId = (l.id || '').toLowerCase().includes(query);
-      const matchName = (l.employeeName || '').toLowerCase().includes(query);
-      const matchRole = (l.employeeRole || '').toLowerCase().includes(query);
-      if (!matchId && !matchName && !matchRole) return false;
-    }
-    return true;
-  });
-}
-
-function filterLoans() {
-  renderLoansTable(getFilteredLoans());
-}
-
-function setLoanStatusFilter(status) {
-  currentLoanFilterStatus = status;
-  document.querySelectorAll('#sectionLoans .btn-filter').forEach(btn => btn.classList.remove('active'));
-
-  const activeBtnMap = {
-    ALL: 'filterLoanAll',
-    PENDING: 'filterLoanPending',
-    APPROVED: 'filterLoanApproved',
-    REJECTED: 'filterLoanRejected',
-    PAID_OFF: 'filterLoanPaid'
-  };
-  const activeBtn = document.getElementById(activeBtnMap[status]);
-  if (activeBtn) activeBtn.classList.add('active');
-
-  filterLoans();
-}
-
-function renderLoansTable(list) {
-  const tbody = document.getElementById('loansTableBody');
-  if (!tbody) return;
-
-  if (!list || list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10" class="table-empty">Tidak ada pengajuan pinjaman yang cocok.</td></tr>';
-    return;
-  }
-
-  tbody.innerHTML = list.map(l => {
-    let statusBadge = '';
-    if (l.status === 'PENDING') {
-      statusBadge = '<span class="status-tag pending">● Perlu Review</span>';
-    } else if (l.status === 'APPROVED') {
-      statusBadge = '<span class="status-tag disbursed">✓ Disetujui</span>';
-    } else if (l.status === 'REJECTED') {
-      statusBadge = '<span class="status-tag rejected">✕ Ditolak</span>';
-    } else {
-      statusBadge = '<span class="status-tag active">✓ Lunas</span>';
-    }
-
-    const methodBadge = l.paymentMethod === 'PAYROLL_DEDUCTION'
-      ? '<span class="status-tag payroll">Potong Gaji Otomatis</span>'
-      : '<span class="status-tag direct">Cicilan Mandiri</span>';
-
-    let actionCell = '';
-    if (l.status === 'PENDING') {
-      actionCell = `
-        <div style="display: flex; gap: 6px; justify-content: center;">
-          <button class="btn btn-primary btn-sm" onclick="openLoanReviewModal('${l.id}')">
-            Tinjau & Setujui
-          </button>
-          <button class="btn btn-danger btn-sm" onclick="openLoanRejectModal('${l.id}')">
-            Tolak
-          </button>
-        </div>
-      `;
-    } else {
-      actionCell = `
-        <div style="display: flex; gap: 6px; justify-content: center;">
-          <button class="btn btn-secondary btn-sm" onclick="openLoanSlipModal('${l.id}')">
-            Lihat Slip
-          </button>
-        </div>
-      `;
-    }
-
-    return `
-      <tr>
-        <td><code>${escapeHtml(l.id)}</code></td>
-        <td>
-          <div class="emp-name">${escapeHtml(l.employeeName)}</div>
-          <div class="emp-sub">${escapeHtml(l.employeeRole)}</div>
-        </td>
-        <td class="emp-salary"><strong>${formatRupiah(l.amount)}</strong></td>
-        <td>
-          <div><strong>${l.tenorMonths} Bulan</strong></div>
-          <div class="emp-sub">+${formatRupiah(l.totalInterest)} (Bunga ${(l.tenorMonths * 1.0)}%)</div>
-        </td>
-        <td>
-          <div style="color: var(--success); font-weight: 600;">${formatRupiah(l.monthlyInstallment)}/bln</div>
-          <div class="emp-sub">Total: ${formatRupiah(l.totalRepayment)}</div>
-        </td>
-        <td>${methodBadge}</td>
-        <td>
-          <div style="max-width: 150px; font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(l.reasonCategory + ' - ' + l.notes)}">
-            ${escapeHtml(l.reasonCategory)}
-          </div>
-        </td>
-        <td>${statusBadge}</td>
-        <td class="emp-sub">${escapeHtml(l.appliedDate)}</td>
-        <td style="text-align: center;">${actionCell}</td>
-      </tr>
-    `;
-  }).join('');
-}
-
-function loadLoansOverview() {
-  allLoans = getStoredLoans();
-  updateLoanStatsAndBadges();
-
-  const tbody = document.getElementById('overviewLoansBody');
-  if (!tbody) return;
-
-  const pendingOrRecent = allLoans.slice(0, 5);
-  if (!pendingOrRecent || pendingOrRecent.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" class="table-empty">Belum ada permohonan pinjaman karyawan.</td></tr>';
-    return;
-  }
-
-  tbody.innerHTML = pendingOrRecent.map(l => {
-    let statusBadge = '';
-    if (l.status === 'PENDING') {
-      statusBadge = '<span class="status-tag pending">● Perlu Review</span>';
-    } else if (l.status === 'APPROVED') {
-      statusBadge = '<span class="status-tag disbursed">✓ Disetujui</span>';
-    } else if (l.status === 'REJECTED') {
-      statusBadge = '<span class="status-tag rejected">✕ Ditolak</span>';
-    } else {
-      statusBadge = '<span class="status-tag active">✓ Lunas</span>';
-    }
-
-    const methodLabel = l.paymentMethod === 'PAYROLL_DEDUCTION'
-      ? '<span class="status-tag payroll">Potong Gaji</span>'
-      : '<span class="status-tag direct">Cicilan Mandiri</span>';
-
-    const actionCell = l.status === 'PENDING'
-      ? `<button class="btn btn-primary btn-sm" onclick="navigate('loans'); openLoanReviewModal('${l.id}')">Validasi</button>`
-      : `<button class="btn btn-secondary btn-sm" onclick="openLoanSlipModal('${l.id}')">Slip</button>`;
-
-    return `
-      <tr>
-        <td><code>${escapeHtml(l.id)}</code></td>
-        <td><strong>${escapeHtml(l.employeeName)}</strong> <span class="emp-sub">(${escapeHtml(l.employeeRole)})</span></td>
-        <td><strong>${formatRupiah(l.amount)}</strong></td>
-        <td>${l.tenorMonths} Bln (+${formatRupiah(l.totalInterest)})</td>
-        <td style="color: var(--success); font-weight: 600;">${formatRupiah(l.monthlyInstallment)}/bln</td>
-        <td>${methodLabel}</td>
-        <td>${statusBadge}</td>
-        <td style="text-align: center;">${actionCell}</td>
-      </tr>
-    `;
-  }).join('');
-}
-
-function openLoanReviewModal(loanId) {
-  const loan = allLoans.find(l => l.id === loanId);
-  if (!loan) return;
-
-  activeLoanInReviewId = loanId;
-  const titleEl = document.getElementById('modalReviewLoanTitle');
-  if (titleEl) titleEl.textContent = `Validasi Pinjaman ${loan.id} - ${loan.employeeName}`;
-
-  const maxQuota = (loan.baseSalary || 4000000) / 2;
-  const bodyEl = document.getElementById('reviewLoanModalBody');
-
-  bodyEl.innerHTML = `
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;">
-      <div style="background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 14px;">
-        <span style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 8px;">Profil Karyawan</span>
-        <div style="font-size: 0.85rem; margin-bottom: 4px;">Nama: <strong>${escapeHtml(loan.employeeName)}</strong></div>
-        <div style="font-size: 0.85rem; margin-bottom: 4px;">Jabatan: <strong>${escapeHtml(loan.employeeRole)}</strong></div>
-        <div style="font-size: 0.85rem; margin-bottom: 4px;">Gaji Pokok: <strong>${formatRupiah(loan.baseSalary || 4000000)}</strong></div>
-        <div style="font-size: 0.85rem; color: #3b82f6;">Maks Plafon (50%): <strong>${formatRupiah(maxQuota)}</strong></div>
-      </div>
-
-      <div style="background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 14px;">
-        <span style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 8px;">Rincian Pinjaman</span>
-        <div style="font-size: 0.85rem; margin-bottom: 4px;">Pokok Pinjaman: <strong>${formatRupiah(loan.amount)}</strong></div>
-        <div style="font-size: 0.85rem; margin-bottom: 4px;">Jangka Waktu: <strong>${loan.tenorMonths} Bulan</strong></div>
-        <div style="font-size: 0.85rem; margin-bottom: 4px; color: #bf5ae8;">Suku Bunga Karyawan: <strong>1.0% / bulan flat</strong></div>
-        <div style="font-size: 0.85rem;">Total Bunga: <strong>+${formatRupiah(loan.totalInterest)}</strong></div>
-      </div>
-    </div>
-
-    <div style="background: var(--primary-subtle); border: 1px solid var(--primary); border-radius: var(--radius-md); padding: 14px; margin-bottom: 16px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-        <span style="font-size: 0.8rem; font-weight: 700; color: #ffffff;">METODE PELUNASAN:</span>
-        <span class="status-tag ${loan.paymentMethod === 'PAYROLL_DEDUCTION' ? 'payroll' : 'direct'}">
-          ${loan.paymentMethod === 'PAYROLL_DEDUCTION' ? 'Potong Gaji Otomatis (Tgl 28)' : 'Cicilan Mandiri (VA/QRIS)'}
-        </span>
-      </div>
-      <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 8px;">
-        ${loan.paymentMethod === 'PAYROLL_DEDUCTION'
-          ? 'Cicilan sebesar <strong>' + formatRupiah(loan.monthlyInstallment) + '</strong> akan dipotong otomatis langsung pada slip gaji tanggal 28 selama ' + loan.tenorMonths + ' bulan.'
-          : 'Karyawan membayar cicilan sebesar <strong>' + formatRupiah(loan.monthlyInstallment) + '</strong> secara mandiri via transfer/QRIS.'}
-      </p>
-      <div style="display: flex; justify-content: space-between; border-top: 1px solid var(--border-subtle); padding-top: 8px;">
-        <span style="font-size: 0.88rem; font-weight: 600;">Total Pengembalian: ${formatRupiah(loan.totalRepayment)}</span>
-        <span style="font-size: 0.94rem; font-weight: 700; color: var(--success);">Cicilan: ${formatRupiah(loan.monthlyInstallment)}/bln</span>
-      </div>
-    </div>
-
-    <div style="background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 14px;">
-      <span style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 4px;">Alasan Pengajuan Mendesak:</span>
-      <div style="font-size: 0.86rem; font-weight: 600; color: #ffffff; margin-bottom: 2px;">${escapeHtml(loan.reasonCategory)}</div>
-      <div style="font-size: 0.82rem; color: var(--text-muted); font-style: italic;">"${escapeHtml(loan.notes)}"</div>
-    </div>
-  `;
-
-  document.getElementById('reviewLoanModal').classList.add('show');
-}
-
-function triggerRejectFromReview() {
-  closeModal('reviewLoanModal');
-  openLoanRejectModal(activeLoanInReviewId);
-}
-
-async function handleApproveLoan() {
-  if (!activeLoanInReviewId) return;
-  const loan = allLoans.find(l => l.id === activeLoanInReviewId);
-  if (!loan) return;
-
-  const approvedDate = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' WIB';
-  loan.status = 'APPROVED';
-  loan.approvedDate = approvedDate;
-
-  saveStoredLoans(allLoans);
-  closeModal('reviewLoanModal');
-
-  if (supabaseClient) {
-    try {
-      await supabaseClient
-        .from('company_loans')
-        .update({
-          status: 'APPROVED',
-          approved_date: approvedDate
-        })
-        .eq('id', loan.id);
-    } catch (e) {
-      console.warn('Gagal update approve di Supabase:', e);
-    }
-  }
-
-  showToast(`Pinjaman ${loan.id} untuk ${loan.employeeName} senilai ${formatRupiah(loan.amount)} berhasil disetujui & dicairkan!`, 'success');
-}
-
-function openLoanRejectModal(loanId) {
-  activeLoanInReviewId = loanId;
-  const inputEl = document.getElementById('loanRejectReasonInput');
-  if (inputEl) inputEl.value = '';
-  document.getElementById('rejectLoanModal').classList.add('show');
-}
-
-function setRejectReason(reasonText) {
-  const inputEl = document.getElementById('loanRejectReasonInput');
-  if (inputEl) inputEl.value = reasonText;
-}
-
-async function handleConfirmRejectLoan() {
-  if (!activeLoanInReviewId) return;
-  const loan = allLoans.find(l => l.id === activeLoanInReviewId);
-  if (!loan) return;
-
-  const reason = (document.getElementById('loanRejectReasonInput')?.value || '').trim() || 'Tidak memenuhi kualifikasi persetujuan pinjaman saat ini.';
-  loan.status = 'REJECTED';
-  loan.rejectionReason = reason;
-
-  saveStoredLoans(allLoans);
-  closeModal('rejectLoanModal');
-
-  if (supabaseClient) {
-    try {
-      await supabaseClient
-        .from('company_loans')
-        .update({
-          status: 'REJECTED',
-          rejection_reason: reason
-        })
-        .eq('id', loan.id);
-    } catch (e) {
-      console.warn('Gagal update reject di Supabase:', e);
-    }
-  }
-
-  showToast(`Pinjaman ${loan.id} ditolak dengan alasan: ${reason}`, 'error');
-}
-
-function openLoanSlipModal(loanId) {
-  const loan = allLoans.find(l => l.id === loanId);
-  if (!loan) return;
-
-  const area = document.getElementById('slipLoanPrintableArea');
-  if (!area) return;
-
-  area.innerHTML = `
-    <div style="border: 2px solid #CBD5E1; padding: 24px; border-radius: 8px; background: #ffffff; color: #0F172A;">
-      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #7C2DB8; padding-bottom: 14px; margin-bottom: 16px;">
-        <div>
-          <h2 style="font-size: 18px; font-weight: 800; color: #7C2DB8; margin: 0;">PT MEGA FINANSIAL NUSANTARA</h2>
-          <p style="font-size: 11px; color: #64748B; margin: 2px 0 0;">Divisi HR & People Operations • Cashper Platform</p>
-        </div>
-        <div style="text-align: right;">
-          <span style="font-size: 10px; font-weight: 700; color: #7C2DB8; background: #F3E8FF; padding: 3px 8px; border-radius: 4px;">BUKTI PERSETUJUAN PINJAMAN</span>
-          <p style="font-size: 12px; font-weight: 700; color: #0F172A; margin: 4px 0 0;">No: ${loan.id}/HRD/2026</p>
-        </div>
-      </div>
-
-      <div style="font-size: 12px; margin-bottom: 16px;">
-        <p style="margin: 0 0 8px; color: #475569;">Fasilitas pinjaman resmi perusahaan telah disetujui kepada:</p>
-        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-          <tr>
-            <td style="width: 160px; padding: 4px 0; color: #64748B;">Nama Karyawan</td>
-            <td style="padding: 4px 0; font-weight: 700; color: #0F172A;">: ${escapeHtml(loan.employeeName)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 4px 0; color: #64748B;">Jabatan / Divisi</td>
-            <td style="padding: 4px 0; font-weight: 700; color: #0F172A;">: ${escapeHtml(loan.employeeRole)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 4px 0; color: #64748B;">Gaji Pokok</td>
-            <td style="padding: 4px 0; font-weight: 700; color: #0F172A;">: ${formatRupiah(loan.baseSalary || 4000000)}</td>
-          </tr>
-        </table>
-      </div>
-
-      <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 12px; margin-bottom: 16px;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-          <tr>
-            <td style="padding: 4px 0; color: #475569;">Pokok Pinjaman</td>
-            <td style="padding: 4px 0; text-align: right; font-weight: 700; color: #0F172A;">${formatRupiah(loan.amount)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 4px 0; color: #475569;">Bunga Standar Karyawan</td>
-            <td style="padding: 4px 0; text-align: right; font-weight: 600; color: #7C2DB8;">1.0% / bulan flat (${loan.tenorMonths} bulan = ${formatRupiah(loan.totalInterest)})</td>
-          </tr>
-          <tr style="border-top: 1px solid #E2E8F0;">
-            <td style="padding: 6px 0; font-weight: 700; color: #0F172A;">Total Pengembalian</td>
-            <td style="padding: 6px 0; text-align: right; font-weight: 800; color: #7C2DB8; font-size: 13px;">${formatRupiah(loan.totalRepayment)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 4px 0; color: #475569;">Cicilan per Bulan</td>
-            <td style="padding: 4px 0; text-align: right; font-weight: 800; color: #10B981; font-size: 13px;">${formatRupiah(loan.monthlyInstallment)} / bulan</td>
-          </tr>
-          <tr>
-            <td style="padding: 4px 0; color: #475569;">Skema Pelunasan</td>
-            <td style="padding: 4px 0; text-align: right; font-weight: 700; color: #2563EB;">
-              ${loan.paymentMethod === 'PAYROLL_DEDUCTION' ? 'Potong Gaji Otomatis (Tgl 28)' : 'Cicilan Mandiri (VA/QRIS)'}
-            </td>
-          </tr>
-        </table>
-      </div>
-
-      <div style="display: flex; justify-content: space-between; margin-top: 28px; text-align: center; font-size: 11px;">
-        <div style="width: 180px;">
-          <p style="color: #64748B; margin: 0 0 40px;">Penerima Fasilitas,</p>
-          <strong style="color: #0F172A; text-decoration: underline;">${escapeHtml(loan.employeeName)}</strong>
-          <p style="color: #94A3B8; margin: 2px 0 0;">Karyawan</p>
-        </div>
-
-        <div style="width: 180px;">
-          <p style="color: #64748B; margin: 0 0 40px;">Disetujui Oleh HRD,</p>
-          <strong style="color: #0F172A; text-decoration: underline;">Ratna Dewi, S.Psi</strong>
-          <p style="color: #94A3B8; margin: 2px 0 0;">Head of HR & People Ops</p>
-        </div>
-      </div>
-    </div>
-  `;
-
-  document.getElementById('slipLoanModal').classList.add('show');
-}
-
-function simulateNewLoanIncoming() {
-  const dummyEmployees = [
-    { name: "Dewi Kartika", role: "Digital Marketing Specialist", amount: 1200000, tenor: 2, cat: "Biaya Pendidikan Anak" },
-    { name: "Ahmad Dahlan", role: "Staff Gudang & Ekspedisi", amount: 800000, tenor: 1, cat: "Kebutuhan Mendesak Awal Bulan" },
-    { name: "Fajar Nugraha", role: "Quality Assurance", amount: 1500000, tenor: 3, cat: "Perbaikan Kendaraan Kerja" }
-  ];
-  const chosen = dummyEmployees[Math.floor(Math.random() * dummyEmployees.length)];
-  const interest = Math.round(chosen.amount * 0.01 * chosen.tenor);
-  const total = chosen.amount + interest;
-  const installment = Math.round(total / chosen.tenor);
-
-  const nowFormatted = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' WIB';
-
-  const newLoan = {
-    id: "LOAN-" + Math.floor(1000 + Math.random() * 9000),
-    employeeName: chosen.name,
-    employeeRole: chosen.role,
-    baseSalary: 4000000,
-    amount: chosen.amount,
-    tenorMonths: chosen.tenor,
-    interestRateMonthly: 0.01,
-    totalInterest: interest,
-    totalRepayment: total,
-    monthlyInstallment: installment,
-    reasonCategory: chosen.cat,
-    notes: "Pengajuan pinjaman masuk melalui aplikasi karyawan Cashper.",
-    status: "PENDING",
-    appliedDate: nowFormatted,
-    approvedDate: null,
-    rejectionReason: null,
-    paymentMethod: "PAYROLL_DEDUCTION",
-    remainingBalance: total
-  };
-
-  allLoans.unshift(newLoan);
-  saveStoredLoans(allLoans);
-  showToast(`Pengajuan baru masuk: ${chosen.name} - ${formatRupiah(chosen.amount)} (${chosen.tenor} bln)!`, 'success');
-}
-
-async function clearAllLoans() {
-  if (!confirm('Apakah Anda yakin ingin MENGHAPUS SEMUA riwayat pengajuan & transaksi pinjaman karyawan di seluruh akun agar data kembali bersih (reset nol)?')) {
-    return;
-  }
-  try {
-    if (supabaseClient) {
-      const { error: delErr } = await supabaseClient
-        .from('company_loans')
-        .delete()
-        .neq('id', 'NON_EXISTENT_ID');
-      if (delErr) {
-        console.warn('Gagal hapus pinjaman di Supabase:', delErr);
-      }
-    }
-    allLoans = [];
-    saveStoredLoans(allLoans);
-    renderLoans();
-    renderPendingLoansOverview();
-    updateLoanStats();
-    showToast('Semua transaksi pinjaman karyawan berhasil dibersihkan! Limit pinjaman kembali penuh.', 'success');
-  } catch (err) {
-    showToast('Gagal membersihkan data pinjaman: ' + err.message, 'error');
   }
 }
