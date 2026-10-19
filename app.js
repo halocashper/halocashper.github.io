@@ -2296,14 +2296,33 @@ async function loadCompanies() {
   tbody.innerHTML = '<tr><td colspan="8" class="table-empty">Memuat daftar perusahaan...</td></tr>';
 
   try {
-    const { data, error } = await supabaseClient
+    // 1. Ambil data semua perusahaan mitra
+    const { data: compData, error: compError } = await supabaseClient
       .from('companies')
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (compError) throw compError;
 
-    allCompanies = data || [];
+    // 2. Selalu muat data karyawan agar jumlah karyawan di tiap perusahaan selalu realtime & tidak 0 saat refresh
+    try {
+      const { data: empData, error: empError } = await supabaseClient
+        .from('employees')
+        .select('id, full_name, email, company, company_code, is_active');
+
+      if (!empError && Array.isArray(empData)) {
+        allEmployees = empData;
+      } else {
+        const { data: rpcEmp, error: rpcErr } = await supabaseClient.rpc('admin_get_employees');
+        if (!rpcErr && Array.isArray(rpcEmp)) {
+          allEmployees = rpcEmp;
+        }
+      }
+    } catch (empErr) {
+      console.warn('Gagal memuat count karyawan untuk loadCompanies:', empErr);
+    }
+
+    allCompanies = compData || [];
     renderCompaniesTable(allCompanies);
 
   } catch (err) {
@@ -2323,12 +2342,20 @@ function renderCompaniesTable(list) {
   }
 
   tbody.innerHTML = list.map(c => {
-    // Hitung jumlah karyawan di perusahaan ini
-    const empCount = (allEmployees || []).filter(e => 
-      (e.company_code || '').toUpperCase() === (c.company_code || '').toUpperCase() ||
-      (e.company || '').toLowerCase() === (c.name || '').toLowerCase() ||
-      (e.company || '').toUpperCase() === (c.company_code || '').toUpperCase()
-    ).length;
+    // Hitung jumlah karyawan di perusahaan ini secara presisi
+    const code = (c.company_code || '').trim().toUpperCase();
+    const name = (c.name || '').trim().toLowerCase();
+
+    const empCount = (allEmployees || []).filter(e => {
+      const empCode = (e.company_code || '').trim().toUpperCase();
+      const empComp = (e.company || '').trim().toLowerCase();
+
+      return (
+        (code && empCode === code) ||
+        (name && empComp === name) ||
+        (code && empComp === code.toLowerCase())
+      );
+    }).length;
 
     const statusBadge = c.is_active !== false 
       ? `<span class="status-tag active"><span class="material-symbols-rounded" style="font-size:14px;">check_circle</span> Aktif</span>`
