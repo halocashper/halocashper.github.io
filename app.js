@@ -407,10 +407,25 @@ function filterEmployees() {
 // -------------------------------------------------------------------
 function openAddEmployeeModal() {
   document.getElementById('addEmployeeForm').reset();
-  document.getElementById('addCompany').value = '';
   document.getElementById('addPassword').value = 'cashper123';
   document.getElementById('addBank').value = 'BRI';
   document.getElementById('addPayday').value = '28';
+
+  const compInput = document.getElementById('addCompany');
+  if (compInput) {
+    if (currentAuth && currentAuth.role === 'hr') {
+      compInput.value = currentAuth.companyName || currentAuth.companyCode;
+      compInput.readOnly = true;
+      compInput.style.opacity = '0.85';
+      compInput.style.background = 'var(--bg-hover)';
+    } else {
+      compInput.value = '';
+      compInput.readOnly = false;
+      compInput.style.opacity = '1';
+      compInput.style.background = '';
+    }
+  }
+
   document.getElementById('addEmployeeModal').classList.add('show');
 }
 
@@ -428,12 +443,20 @@ async function handleCreateEmployee(e) {
   const email = document.getElementById('addEmail').value.trim().toLowerCase();
   const password = document.getElementById('addPassword').value;
   const roleId = parseInt(document.getElementById('addRole').value, 10);
+  
   let company = document.getElementById('addCompany').value.trim();
+  let companyCode = 'C-191026';
+
   if (currentAuth && currentAuth.role === 'hr') {
     company = currentAuth.companyName || currentAuth.companyCode;
+    companyCode = (currentAuth.companyCode || '').toUpperCase();
   } else if (!company) {
-    company = 'Cashper';
+    company = 'Cashper Indonesia';
+    companyCode = 'C-191026';
+  } else {
+    companyCode = (company === 'Cashper' || company === 'Cashper Indonesia') ? 'C-191026' : company.toUpperCase();
   }
+
   const bankName = document.getElementById('addBank').value;
   const accountNumber = document.getElementById('addAccount').value.trim();
   const payday = parseInt(document.getElementById('addPayday').value || '28', 10);
@@ -458,7 +481,8 @@ async function handleCreateEmployee(e) {
         options: {
           data: {
             full_name: fullName,
-            company: company
+            company: company,
+            company_code: companyCode
           }
         }
       });
@@ -471,17 +495,35 @@ async function handleCreateEmployee(e) {
 
     // 2. Link employee profile to database
     if (newUserId) {
-      const { error: linkErr } = await supabaseClient.rpc('admin_link_employee_profile', {
-        p_user_id: newUserId,
-        p_email: email,
-        p_full_name: fullName,
-        p_company: company,
-        p_role_id: roleId,
-        p_bank_name: bankName,
-        p_bank_account_number: accountNumber,
-        p_payday_day: payday
-      });
-      if (linkErr) throw linkErr;
+      let linked = false;
+      try {
+        const { error: linkErr1 } = await supabaseClient.rpc('admin_link_employee_profile', {
+          p_user_id: newUserId,
+          p_email: email,
+          p_full_name: fullName,
+          p_company: company,
+          p_role_id: roleId,
+          p_bank_name: bankName,
+          p_bank_account_number: accountNumber,
+          p_payday_day: payday,
+          p_company_code: companyCode
+        });
+        if (!linkErr1) linked = true;
+      } catch (_) {}
+
+      if (!linked) {
+        const { error: linkErr2 } = await supabaseClient.rpc('admin_link_employee_profile', {
+          p_user_id: newUserId,
+          p_email: email,
+          p_full_name: fullName,
+          p_company: company,
+          p_role_id: roleId,
+          p_bank_name: bankName,
+          p_bank_account_number: accountNumber,
+          p_payday_day: payday
+        });
+        if (linkErr2) throw linkErr2;
+      }
     } else {
       // Fallback: Use direct RPC admin_register_employee
       const { error: rpcErr } = await supabaseClient.rpc('admin_register_employee', {
@@ -497,16 +539,26 @@ async function handleCreateEmployee(e) {
       if (rpcErr) throw rpcErr;
     }
 
-    // 3. Update company_code di tabel employees
+    // 3. Pastikan company_code karyawan tersinkronisasi via RPC admin_set_employee_company (Security Definer)
     try {
-      const assignCode = (currentAuth && currentAuth.companyCode) ? currentAuth.companyCode : (company === 'Cashper' ? 'CASHPER' : company.toUpperCase());
+      await supabaseClient.rpc('admin_set_employee_company', {
+        p_email: email,
+        p_company_code: companyCode,
+        p_company_name: company
+      });
+    } catch (setErr) {
+      console.warn('admin_set_employee_company warning:', setErr);
+    }
+
+    // 4. Fallback direct update tabel employees
+    try {
       await supabaseClient
         .from('employees')
-        .update({ company_code: assignCode, company: company })
-        .eq('email', email);
+        .update({ company_code: companyCode, company: company })
+        .ilike('email', email);
     } catch (_) {}
 
-    showToast(`Karyawan ${fullName} berhasil didaftarkan!`, 'success');
+    showToast(`Karyawan ${fullName} (${companyCode}) berhasil didaftarkan!`, 'success');
     closeModal('addEmployeeModal');
     loadEmployees();
 
@@ -2213,27 +2265,53 @@ function renderCompaniesTable(list) {
   }).join('');
 }
 
-// Generate ID Perusahaan berformat C-DDMMYY (Contoh: C-191026)
-function generateCompanyCode() {
+// Generate ID Perusahaan acak unik berformat C-DDMMYY atau C-DDMMYY-XXX
+function generateRandomCompanyCode() {
+  const now = new Date();
+  const day = String(now.getDate()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const year = String(now.getFullYear()).slice(-2);
+  const dateStr = `${day}${month}${year}`;
+  
+  // Hasilkan angka acak 3-digit (misal: 482, 915, 730)
+  const randNum = Math.floor(100 + Math.random() * 900);
+  return `C-${dateStr}-${randNum}`;
+}
+
+function setGeneratedCompanyCode() {
+  const input = document.getElementById('addCompanyCode');
+  if (!input) return;
+
+  const currentVal = (input.value || '').trim();
   const now = new Date();
   const day = String(now.getDate()).padStart(2, '0');
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const year = String(now.getFullYear()).slice(-2);
   const baseCode = `C-${day}${month}${year}`;
 
-  if (allCompanies && allCompanies.some(c => (c.company_code || '').toUpperCase() === baseCode)) {
-    let count = 2;
-    while (allCompanies.some(c => (c.company_code || '').toUpperCase() === `${baseCode}-${String(count).padStart(2, '0')}`)) {
-      count++;
-    }
-    return `${baseCode}-${String(count).padStart(2, '0')}`;
+  let newCode = '';
+  // Jika input masih kosong dan baseCode belum terdaftar, gunakan baseCode
+  if (!currentVal && (!allCompanies || !allCompanies.some(c => (c.company_code || '').toUpperCase() === baseCode))) {
+    newCode = baseCode;
+  } else {
+    // Generate kode acak unik baru
+    do {
+      newCode = generateRandomCompanyCode();
+    } while (allCompanies && allCompanies.some(c => (c.company_code || '').toUpperCase() === newCode));
   }
-  return baseCode;
-}
 
-function setGeneratedCompanyCode() {
-  const input = document.getElementById('addCompanyCode');
-  if (input) input.value = generateCompanyCode();
+  input.value = newCode;
+
+  // Efek visual highlight pada input agar terasa responsif
+  input.style.transition = 'all 0.25s ease';
+  input.style.borderColor = '#bf5ae8';
+  input.style.boxShadow = '0 0 12px rgba(191,90,232,0.6)';
+  setTimeout(() => {
+    input.style.borderColor = '';
+    input.style.boxShadow = '';
+  }, 400);
+
+  showToast(`ID baru diacak: ${newCode}`, 'info');
 }
 
 function openAddCompanyModal() {
