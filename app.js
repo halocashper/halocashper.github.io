@@ -2296,15 +2296,23 @@ async function loadCompanies() {
   tbody.innerHTML = '<tr><td colspan="8" class="table-empty">Memuat daftar perusahaan...</td></tr>';
 
   try {
-    // 1. Ambil data semua perusahaan mitra
-    const { data: compData, error: compError } = await supabaseClient
-      .from('companies')
-      .select('*')
-      .order('created_at', { ascending: false });
+    // 1. Coba ambil data perusahaan via RPC admin_get_companies (sudah menghitung employee_count realtime di database)
+    const { data: rpcData, error: rpcError } = await supabaseClient.rpc('admin_get_companies');
 
-    if (compError) throw compError;
+    if (!rpcError && Array.isArray(rpcData)) {
+      allCompanies = rpcData;
+    } else {
+      // Fallback direct select dari tabel companies
+      const { data: compData, error: compError } = await supabaseClient
+        .from('companies')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    // 2. Selalu muat data karyawan agar jumlah karyawan di tiap perusahaan selalu realtime & tidak 0 saat refresh
+      if (compError) throw compError;
+      allCompanies = compData || [];
+    }
+
+    // 2. Selalu muat data karyawan juga agar fallback count selalu sinkron
     try {
       const { data: empData, error: empError } = await supabaseClient
         .from('employees')
@@ -2322,7 +2330,6 @@ async function loadCompanies() {
       console.warn('Gagal memuat count karyawan untuk loadCompanies:', empErr);
     }
 
-    allCompanies = compData || [];
     renderCompaniesTable(allCompanies);
 
   } catch (err) {
@@ -2342,20 +2349,22 @@ function renderCompaniesTable(list) {
   }
 
   tbody.innerHTML = list.map(c => {
-    // Hitung jumlah karyawan di perusahaan ini secara presisi
+    // Hitung jumlah karyawan: gunakan employee_count langsung dari database jika ada, atau filter allEmployees
     const code = (c.company_code || '').trim().toUpperCase();
     const name = (c.name || '').trim().toLowerCase();
 
-    const empCount = (allEmployees || []).filter(e => {
-      const empCode = (e.company_code || '').trim().toUpperCase();
-      const empComp = (e.company || '').trim().toLowerCase();
+    const empCount = (c.employee_count !== undefined && c.employee_count !== null)
+      ? c.employee_count
+      : (allEmployees || []).filter(e => {
+          const empCode = (e.company_code || '').trim().toUpperCase();
+          const empComp = (e.company || '').trim().toLowerCase();
 
-      return (
-        (code && empCode === code) ||
-        (name && empComp === name) ||
-        (code && empComp === code.toLowerCase())
-      );
-    }).length;
+          return (
+            (code && empCode === code) ||
+            (name && empComp === name) ||
+            (code && empComp === code.toLowerCase())
+          );
+        }).length;
 
     const statusBadge = c.is_active !== false 
       ? `<span class="status-tag active"><span class="material-symbols-rounded" style="font-size:14px;">check_circle</span> Aktif</span>`
@@ -2646,12 +2655,12 @@ async function handleUpdateCompany(e) {
 }
 
 async function deleteCompany(id, code, name) {
-  if (!confirm(`Hapus perusahaan "${name}" (${code}) dari sistem Cashper?\nData perusahaan mitra ini akan dihapus permanen.`)) return;
+  if (!confirm(`Hapus perusahaan "${name}" (${code}) dari sistem Cashper?\n\nPERINGATAN: Semua akun karyawan yang terdaftar di perusahaan ini akan OTOMATIS IKUT TERHAPUS permanen dari sistem dan karyawan yang sedang login di aplikasi Android akan langsung otomatis ter-logout.`)) return;
 
   try {
     let deleted = false;
 
-    // 1. Coba hapus via RPC (security definer)
+    // 1. Panggil RPC admin_delete_company (menghapus perusahaan, karyawan di public.employees, auth.users, dan withdrawals)
     try {
       const { data, error } = await supabaseClient.rpc('admin_delete_company', { 
         p_company_code: code,
@@ -2669,24 +2678,29 @@ async function deleteCompany(id, code, name) {
       } catch (_) {}
     }
 
-    // 2. Hapus langsung via primary key ID jika valid
+    // 2. Direct delete fallback: hapus data karyawan di perusahaan ini
+    try {
+      await supabaseClient
+        .from('employees')
+        .delete()
+        .or(`company_code.eq.${code},company.ilike.${name}`);
+    } catch (empErr) {
+      console.warn('Direct delete employees fallback warning:', empErr);
+    }
+
+    // 3. Direct delete perusahaan
     if (id && id !== 'default-cashper') {
       try {
-        await supabaseClient
-          .from('companies')
-          .delete()
-          .eq('id', id);
+        await supabaseClient.from('companies').delete().eq('id', id);
+        deleted = true;
       } catch (idErr) {
         console.warn('Direct delete by id warning:', idErr);
       }
     }
 
-    // 3. Hapus langsung via company_code
     try {
-      await supabaseClient
-        .from('companies')
-        .delete()
-        .eq('company_code', code);
+      await supabaseClient.from('companies').delete().eq('company_code', code);
+      deleted = true;
     } catch (codeErr) {
       console.warn('Direct delete by code warning:', codeErr);
     }
@@ -2695,7 +2709,7 @@ async function deleteCompany(id, code, name) {
     allCompanies = allCompanies.filter(c => c.id !== id && (c.company_code || '').toUpperCase() !== (code || '').toUpperCase());
     renderCompaniesTable(allCompanies);
 
-    showToast(`Perusahaan "${name}" (${code}) berhasil dihapus permanen.`, 'success');
+    showToast(`Perusahaan "${name}" beserta seluruh akun karyawannya berhasil dihapus permanen.`, 'success');
     await loadCompanies();
 
   } catch (err) {
