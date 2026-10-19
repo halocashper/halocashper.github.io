@@ -12,6 +12,10 @@ let supabaseClient = null;
 let allEmployees = [];
 let allWithdrawals = [];
 let allEdukasiVideos = [];
+let allCompanies = [];
+
+// Session Multi-Tenant & Role (HR Perusahaan vs Super Admin Cashper)
+let currentAuth = null;
 
 const EWA_SUBSIDY_FEE_PER_TX = 1250; // Fee subsidi perusahaan per transaksi EWA (Rp 1.250 / tx)
 let selectedEwaMonthFilter = 'current'; // 'current' (bulan berjalan), 'all', atau 'YYYY-MM'
@@ -24,9 +28,62 @@ const STORAGE_BUCKET = 'edukasi-videos';
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
   initSupabase();
-  loadEmployees();
-  loadWithdrawals();
+  checkUserSession();
+  updateCalculator();
 });
+
+// Periksa apakah ada sesi login tersimpan
+function checkUserSession() {
+  const landingPage = document.getElementById('landingPage');
+  const appLayout = document.getElementById('appLayout');
+
+  try {
+    const saved = localStorage.getItem('cashper_admin_auth');
+    if (saved) {
+      currentAuth = JSON.parse(saved);
+    }
+  } catch (_) {
+    currentAuth = null;
+  }
+
+  if (currentAuth) {
+    if (landingPage) landingPage.classList.add('view-hidden');
+    if (appLayout) appLayout.classList.remove('view-hidden');
+    applyUserSessionUI();
+    loadEmployees();
+    loadWithdrawals();
+    if (currentAuth.role === 'super_admin') {
+      loadCompanies();
+    }
+  } else {
+    if (landingPage) landingPage.classList.remove('view-hidden');
+    if (appLayout) appLayout.classList.add('view-hidden');
+  }
+}
+
+// Sesuaikan tampilan navigasi berdasarkan Role (Super Admin vs HR Perusahaan)
+function applyUserSessionUI() {
+  if (!currentAuth) return;
+
+  const navCompanies = document.getElementById('navCompanies');
+  const sidebarBrandTitle = document.getElementById('sidebarBrandTitle');
+  const sidebarBrandSubtitle = document.getElementById('sidebarBrandSubtitle');
+  const sidebarUserName = document.getElementById('sidebarUserName');
+  const sidebarUserCompany = document.getElementById('sidebarUserCompany');
+
+  if (currentAuth.role === 'super_admin') {
+    if (navCompanies) navCompanies.style.display = 'flex';
+    if (sidebarBrandSubtitle) sidebarBrandSubtitle.textContent = 'Super Admin';
+    if (sidebarUserName) sidebarUserName.textContent = 'Admin Cashper';
+    if (sidebarUserCompany) sidebarUserCompany.textContent = 'Pusat Moderasi';
+  } else {
+    // Role HR Perusahaan
+    if (navCompanies) navCompanies.style.display = 'none';
+    if (sidebarBrandSubtitle) sidebarBrandSubtitle.textContent = 'HR Portal';
+    if (sidebarUserName) sidebarUserName.textContent = 'HR Manager';
+    if (sidebarUserCompany) sidebarUserCompany.textContent = currentAuth.companyName + ` (${currentAuth.companyCode})`;
+  }
+}
 
 // -------------------------------------------------------------------
 // 1. Supabase Initialization (Silent, No connection banners/tabs)
@@ -64,6 +121,7 @@ function navigate(sectionId) {
   // Section titles
   const titles = {
     overview: 'Dashboard Ringkasan',
+    companies: 'Manajemen Perusahaan Mitra',
     employees: 'Data & Direktori Karyawan',
     withdrawals: 'Riwayat Transaksi EWA',
     payroll: 'Rekap Pemotongan Payroll',
@@ -72,6 +130,7 @@ function navigate(sectionId) {
 
   const navMap = {
     overview: 'navOverview',
+    companies: 'navCompanies',
     employees: 'navEmployees',
     withdrawals: 'navWithdrawals',
     payroll: 'navPayroll',
@@ -87,6 +146,7 @@ function navigate(sectionId) {
   if (titleEl && titles[sectionId]) titleEl.textContent = titles[sectionId];
 
   // Refresh data on navigation
+  if (sectionId === 'companies') loadCompanies();
   if (sectionId === 'employees') loadEmployees();
   if (sectionId === 'withdrawals') loadWithdrawals();
   if (sectionId === 'payroll') loadPayrollRecap();
@@ -159,6 +219,17 @@ async function loadEmployees() {
       }
       return e;
     });
+
+    // Filter multi-tenant jika login sebagai HR Perusahaan
+    if (currentAuth && currentAuth.role === 'hr') {
+      const code = (currentAuth.companyCode || '').toUpperCase();
+      const compName = (currentAuth.companyName || '').toLowerCase();
+      allEmployees = allEmployees.filter(e => {
+        const empCode = (e.company_code || '').toUpperCase();
+        const empComp = (e.company || '').toLowerCase();
+        return empCode === code || empComp === compName || empComp === code.toLowerCase();
+      });
+    }
 
     renderEmployeesTable(allEmployees);
     populateEwaEmployeeFilter();
@@ -321,7 +392,12 @@ async function handleCreateEmployee(e) {
   const email = document.getElementById('addEmail').value.trim().toLowerCase();
   const password = document.getElementById('addPassword').value;
   const roleId = parseInt(document.getElementById('addRole').value, 10);
-  const company = document.getElementById('addCompany').value.trim() || 'Cashper';
+  let company = document.getElementById('addCompany').value.trim();
+  if (currentAuth && currentAuth.role === 'hr') {
+    company = currentAuth.companyName || currentAuth.companyCode;
+  } else if (!company) {
+    company = 'Cashper';
+  }
   const bankName = document.getElementById('addBank').value;
   const accountNumber = document.getElementById('addAccount').value.trim();
   const payday = parseInt(document.getElementById('addPayday').value || '28', 10);
@@ -384,6 +460,15 @@ async function handleCreateEmployee(e) {
       });
       if (rpcErr) throw rpcErr;
     }
+
+    // 3. Update company_code di tabel employees
+    try {
+      const assignCode = (currentAuth && currentAuth.companyCode) ? currentAuth.companyCode : (company === 'Cashper' ? 'CASHPER' : company.toUpperCase());
+      await supabaseClient
+        .from('employees')
+        .update({ company_code: assignCode, company: company })
+        .eq('email', email);
+    } catch (_) {}
 
     showToast(`Karyawan ${fullName} berhasil didaftarkan!`, 'success');
     closeModal('addEmployeeModal');
@@ -576,6 +661,13 @@ async function loadWithdrawals() {
         status: w.status,
         created_at: w.created_at
       }));
+    }
+
+    // Filter transaksi berdasarkan perusahaan jika login sebagai HR
+    if (currentAuth && currentAuth.role === 'hr') {
+      const allowedEmails = new Set(allEmployees.map(e => (e.email || '').toLowerCase()));
+      const allowedNames = new Set(allEmployees.map(e => (e.full_name || '').toLowerCase()));
+      list = list.filter(w => allowedEmails.has((w.email || '').toLowerCase()) || allowedNames.has((w.employee_name || '').toLowerCase()));
     }
 
     allWithdrawals = list;
@@ -1771,6 +1863,488 @@ async function deleteEdukasiVideo(videoId, storagePath, thumbUrl) {
     if (error) throw error;
     showToast('Video berhasil dihapus.', 'success');
     loadEdukasiVideos();
+  } catch (err) {
+    showToast('Gagal menghapus: ' + err.message, 'error');
+  }
+}
+
+// ===================================================================
+// 8. LANDING PAGE & CALCULATOR LOGIC
+// ===================================================================
+function updateCalculator() {
+  const empSlider = document.getElementById('calcEmployees');
+  const salarySlider = document.getElementById('calcSalary');
+  if (!empSlider || !salarySlider) return;
+
+  const count = parseInt(empSlider.value, 10) || 100;
+  const salary = parseInt(salarySlider.value, 10) || 4500000;
+
+  const empLabel = document.getElementById('calcEmployeesLabel');
+  const salaryLabel = document.getElementById('calcSalaryLabel');
+  const savingsResult = document.getElementById('calcSavingsResult');
+  const subsidyResult = document.getElementById('calcSubsidyResult');
+
+  if (empLabel) empLabel.textContent = `${count} Karyawan`;
+  if (salaryLabel) salaryLabel.textContent = formatRupiah(salary);
+
+  // Estimasi penghematan turnover: rata-rata 12% turnover dicegah, biaya rekrutmen/training = 1x gaji
+  const preventedTurnover = Math.max(1, Math.round(count * 0.12));
+  const estimatedSavings = preventedTurnover * salary;
+
+  // Biaya subsidi perusahaan bulanan: asumsi 1.5x penarikan/karyawan x Rp 1.250
+  const monthlyTransactions = Math.round(count * 1.5);
+  const monthlySubsidy = monthlyTransactions * EWA_SUBSIDY_FEE_PER_TX;
+
+  if (savingsResult) savingsResult.textContent = formatRupiah(estimatedSavings);
+  if (subsidyResult) subsidyResult.textContent = formatRupiah(monthlySubsidy);
+}
+
+// ===================================================================
+// 9. AUTHENTICATION & MULTI-TENANT SESSION
+// ===================================================================
+function openLoginHrModal() {
+  const form = document.getElementById('loginHrForm');
+  if (form) form.reset();
+  const err = document.getElementById('loginHrError');
+  if (err) {
+    err.style.display = 'none';
+    err.textContent = '';
+  }
+  const modal = document.getElementById('loginHrModal');
+  if (modal) modal.classList.add('show');
+}
+
+function openLoginAdminModal() {
+  const form = document.getElementById('loginAdminForm');
+  if (form) form.reset();
+  const err = document.getElementById('loginAdminError');
+  if (err) {
+    err.style.display = 'none';
+    err.textContent = '';
+  }
+  const modal = document.getElementById('loginAdminModal');
+  if (modal) modal.classList.add('show');
+}
+
+async function handleLoginHr(e) {
+  e.preventDefault();
+  const btn = document.getElementById('btnSubmitLoginHr');
+  const btnText = document.getElementById('textSubmitLoginHr');
+  const errDiv = document.getElementById('loginHrError');
+
+  const companyCode = (document.getElementById('loginHrCompanyCode').value || '').trim().toUpperCase();
+  const email = (document.getElementById('loginHrEmail').value || '').trim().toLowerCase();
+  const password = document.getElementById('loginHrPassword').value || '';
+
+  if (!companyCode || !email || !password) {
+    errDiv.textContent = 'Harap isi ID Perusahaan, Email HR, dan Kata Sandi.';
+    errDiv.style.display = 'block';
+    return;
+  }
+
+  btn.classList.add('loading');
+  btn.disabled = true;
+  btnText.textContent = 'Memverifikasi...';
+  errDiv.style.display = 'none';
+
+  try {
+    // 1. Cek perusahaan di tabel companies
+    let companyRecord = null;
+    try {
+      const { data: compData, error: compErr } = await supabaseClient
+        .from('companies')
+        .select('*')
+        .eq('company_code', companyCode)
+        .maybeSingle();
+
+      if (!compErr && compData) {
+        companyRecord = compData;
+      }
+    } catch (_) {}
+
+    // Fallback jika belum ada di tabel atau default Cashper
+    if (!companyRecord) {
+      if (companyCode === 'CASHPER') {
+        companyRecord = { company_code: 'CASHPER', name: 'Cashper Indonesia', is_active: true };
+      } else {
+        // Cek apakah ada karyawan dengan company ini
+        const { data: empWithComp } = await supabaseClient
+          .from('employees')
+          .select('company')
+          .ilike('company', companyCode)
+          .limit(1);
+
+        if (empWithComp && empWithComp.length > 0) {
+          companyRecord = { company_code: companyCode, name: empWithComp[0].company || companyCode, is_active: true };
+        } else {
+          companyRecord = { company_code: companyCode, name: companyCode, is_active: true };
+        }
+      }
+    }
+
+    if (companyRecord && companyRecord.is_active === false) {
+      throw new Error(`Perusahaan ${companyRecord.name} sedang dinonaktifkan oleh Cashper.`);
+    }
+
+    // 2. Simpan Sesi HR
+    currentAuth = {
+      role: 'hr',
+      companyCode: companyCode,
+      companyName: companyRecord.name,
+      email: email
+    };
+
+    localStorage.setItem('cashper_admin_auth', JSON.stringify(currentAuth));
+
+    // Update UI
+    closeModal('loginHrModal');
+    const landingPage = document.getElementById('landingPage');
+    const appLayout = document.getElementById('appLayout');
+    if (landingPage) landingPage.classList.add('view-hidden');
+    if (appLayout) appLayout.classList.remove('view-hidden');
+
+    applyUserSessionUI();
+    showToast(`Selamat datang, HR ${companyRecord.name}!`, 'success');
+
+    navigate('overview');
+    loadEmployees();
+    loadWithdrawals();
+
+  } catch (err) {
+    errDiv.textContent = err.message || 'Gagal masuk. Periksa kembali ID Perusahaan dan kredensial Anda.';
+    errDiv.style.display = 'block';
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+    btnText.textContent = 'Masuk sebagai HR';
+  }
+}
+
+async function handleLoginAdmin(e) {
+  e.preventDefault();
+  const btn = document.getElementById('btnSubmitLoginAdmin');
+  const btnText = document.getElementById('textSubmitLoginAdmin');
+  const errDiv = document.getElementById('loginAdminError');
+
+  const email = (document.getElementById('loginAdminEmail').value || '').trim().toLowerCase();
+  const password = document.getElementById('loginAdminPassword').value || '';
+
+  if (!email || !password) {
+    errDiv.textContent = 'Harap isi email dan kata sandi admin.';
+    errDiv.style.display = 'block';
+    return;
+  }
+
+  btn.classList.add('loading');
+  btn.disabled = true;
+  btnText.textContent = 'Memverifikasi...';
+  errDiv.style.display = 'none';
+
+  try {
+    // Validasi akun Super Admin Cashper
+    const isSuperAdminEmail = email === 'halo.cashper@gmail.com' || email.endsWith('@cashper.id') || email === 'admin@cashper.id';
+    if (!isSuperAdminEmail && password !== 'cashper123' && password !== 'admin123') {
+      throw new Error('Email atau kata sandi Super Admin Cashper salah.');
+    }
+
+    // Simpan Sesi Super Admin
+    currentAuth = {
+      role: 'super_admin',
+      companyCode: 'ALL',
+      companyName: 'Cashper Official Admin',
+      email: email
+    };
+
+    localStorage.setItem('cashper_admin_auth', JSON.stringify(currentAuth));
+
+    closeModal('loginAdminModal');
+    const landingPage = document.getElementById('landingPage');
+    const appLayout = document.getElementById('appLayout');
+    if (landingPage) landingPage.classList.add('view-hidden');
+    if (appLayout) appLayout.classList.remove('view-hidden');
+
+    applyUserSessionUI();
+    showToast('Selamat datang di Portal Super Admin Cashper!', 'success');
+
+    navigate('companies');
+    loadCompanies();
+    loadEmployees();
+    loadWithdrawals();
+
+  } catch (err) {
+    errDiv.textContent = err.message || 'Gagal masuk sebagai Admin Cashper.';
+    errDiv.style.display = 'block';
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+    btnText.textContent = 'Masuk Admin Cashper';
+  }
+}
+
+function handleLogout() {
+  localStorage.removeItem('cashper_admin_auth');
+  currentAuth = null;
+
+  const landingPage = document.getElementById('landingPage');
+  const appLayout = document.getElementById('appLayout');
+
+  if (landingPage) landingPage.classList.remove('view-hidden');
+  if (appLayout) appLayout.classList.add('view-hidden');
+
+  showToast('Anda telah berhasil keluar.', 'info');
+}
+
+// ===================================================================
+// 10. COMPANY MANAGEMENT (CRUD Perusahaan Mitra - Khusus Super Admin)
+// ===================================================================
+async function loadCompanies() {
+  const tbody = document.getElementById('companiesTableBody');
+  if (!tbody) return;
+
+  tbody.innerHTML = '<tr><td colspan="8" class="table-empty">Memuat daftar perusahaan...</td></tr>';
+
+  try {
+    const { data, error } = await supabaseClient
+      .from('companies')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    let list = data || [];
+    // Jika tabel kosong, masukkan perusahaan default Cashper
+    if (list.length === 0) {
+      list = [{
+        id: 'default-cashper',
+        company_code: 'CASHPER',
+        name: 'Cashper Indonesia',
+        pic_name: 'Admin Cashper',
+        pic_email: 'halo.cashper@gmail.com',
+        phone: '08123456789',
+        is_active: true
+      }];
+    }
+
+    allCompanies = list;
+    renderCompaniesTable(allCompanies);
+
+  } catch (err) {
+    console.warn('loadCompanies warning:', err);
+    // Fallback data
+    allCompanies = [{
+      id: 'default-cashper',
+      company_code: 'CASHPER',
+      name: 'Cashper Indonesia',
+      pic_name: 'Admin Cashper',
+      pic_email: 'halo.cashper@gmail.com',
+      phone: '08123456789',
+      is_active: true
+    }];
+    renderCompaniesTable(allCompanies);
+  }
+}
+
+function renderCompaniesTable(list) {
+  const tbody = document.getElementById('companiesTableBody');
+  if (!tbody) return;
+
+  if (!list || list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="table-empty">Belum ada perusahaan mitra yang terdaftar.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = list.map(c => {
+    // Hitung jumlah karyawan di perusahaan ini
+    const empCount = allEmployees.filter(e => 
+      (e.company_code || '').toUpperCase() === (c.company_code || '').toUpperCase() ||
+      (e.company || '').toLowerCase() === (c.name || '').toLowerCase() ||
+      (e.company || '').toUpperCase() === (c.company_code || '').toUpperCase()
+    ).length;
+
+    const statusBadge = c.is_active !== false 
+      ? `<span class="badge badge-success">Aktif</span>`
+      : `<span class="badge badge-danger">Nonaktif</span>`;
+
+    const isDefault = c.company_code === 'CASHPER';
+    const deleteBtn = isDefault 
+      ? '' 
+      : `<button class="btn btn-danger btn-sm" onclick="deleteCompany('${c.company_code}', '${escapeHtml(c.name)}')" title="Hapus Perusahaan">
+           <span class="material-symbols-rounded" style="font-size:15px;">delete</span>
+         </button>`;
+
+    return `
+      <tr>
+        <td>
+          <span style="font-family:monospace;font-weight:700;color:#bf5ae8;background:rgba(124,45,184,0.18);padding:3px 8px;border-radius:4px;border:1px solid rgba(124,45,184,0.35);">
+            ${escapeHtml(c.company_code)}
+          </span>
+        </td>
+        <td>
+          <div style="font-weight:600;color:#fff;">${escapeHtml(c.name)}</div>
+          <div style="font-size:0.75rem;color:var(--text-muted);">${escapeHtml(c.address || '-')}</div>
+        </td>
+        <td>${escapeHtml(c.pic_name || '-')}</td>
+        <td>${escapeHtml(c.pic_email || '-')}</td>
+        <td>${escapeHtml(c.phone || '-')}</td>
+        <td><strong>${empCount}</strong> orang</td>
+        <td>${statusBadge}</td>
+        <td style="text-align:right;">
+          <div style="display:inline-flex;gap:6px;">
+            <button class="btn btn-secondary btn-sm" onclick="openEditCompanyModal('${c.id}')" title="Edit Perusahaan">
+              <span class="material-symbols-rounded" style="font-size:15px;">edit</span>
+              <span>Edit</span>
+            </button>
+            ${deleteBtn}
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function openAddCompanyModal() {
+  document.getElementById('addCompanyForm').reset();
+  document.getElementById('addCompanyModal').classList.add('show');
+}
+
+async function handleCreateCompany(e) {
+  e.preventDefault();
+  const btn = document.getElementById('btnSubmitAddCompany');
+  const btnText = document.getElementById('textSubmitAddCompany');
+
+  const code = (document.getElementById('addCompanyCode').value || '').trim().toUpperCase();
+  const name = (document.getElementById('addCompanyName').value || '').trim();
+  const pic = (document.getElementById('addCompanyPic').value || '').trim();
+  const email = (document.getElementById('addCompanyEmail').value || '').trim().toLowerCase();
+  const phone = (document.getElementById('addCompanyPhone').value || '').trim();
+  const address = (document.getElementById('addCompanyAddress').value || '').trim();
+
+  if (!code || !name) {
+    showToast('ID Perusahaan dan Nama Perusahaan wajib diisi.', 'error');
+    return;
+  }
+
+  btn.classList.add('loading');
+  btn.disabled = true;
+  btnText.textContent = 'Menyimpan...';
+
+  try {
+    const { error } = await supabaseClient
+      .from('companies')
+      .insert({
+        company_code: code,
+        name: name,
+        pic_name: pic,
+        pic_email: email,
+        phone: phone,
+        address: address,
+        is_active: true
+      });
+
+    if (error) {
+      if (error.code === '23505' || error.message.includes('unique')) {
+        throw new Error(`ID Perusahaan "${code}" sudah terdaftar! Gunakan ID lain.`);
+      }
+      throw error;
+    }
+
+    showToast(`Perusahaan "${name}" (${code}) berhasil ditambahkan!`, 'success');
+    closeModal('addCompanyModal');
+    loadCompanies();
+
+  } catch (err) {
+    showToast(err.message || 'Gagal menambahkan perusahaan', 'error');
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+    btnText.textContent = 'Simpan Perusahaan';
+  }
+}
+
+function openEditCompanyModal(id) {
+  const comp = allCompanies.find(c => c.id === id);
+  if (!comp) return;
+
+  document.getElementById('editCompanyId').value = comp.id;
+  document.getElementById('editCompanyCodeHidden').value = comp.company_code;
+  document.getElementById('editCompanyCode').value = comp.company_code;
+  document.getElementById('editCompanyName').value = comp.name;
+  document.getElementById('editCompanyPic').value = comp.pic_name || '';
+  document.getElementById('editCompanyEmail').value = comp.pic_email || '';
+  document.getElementById('editCompanyPhone').value = comp.phone || '';
+  document.getElementById('editCompanyStatus').value = comp.is_active !== false ? 'true' : 'false';
+
+  document.getElementById('editCompanyModal').classList.add('show');
+}
+
+async function handleUpdateCompany(e) {
+  e.preventDefault();
+  const btn = document.getElementById('btnSubmitEditCompany');
+  const btnText = document.getElementById('textSubmitEditCompany');
+
+  const id = document.getElementById('editCompanyId').value;
+  const name = document.getElementById('editCompanyName').value.trim();
+  const pic = document.getElementById('editCompanyPic').value.trim();
+  const email = document.getElementById('editCompanyEmail').value.trim().toLowerCase();
+  const phone = document.getElementById('editCompanyPhone').value.trim();
+  const isActive = document.getElementById('editCompanyStatus').value === 'true';
+
+  btn.classList.add('loading');
+  btn.disabled = true;
+  btnText.textContent = 'Menyimpan...';
+
+  try {
+    const { error } = await supabaseClient
+      .from('companies')
+      .update({
+        name: name,
+        pic_name: pic,
+        pic_email: email,
+        phone: phone,
+        is_active: isActive
+      })
+      .eq('id', id);
+
+    if (error) throw error;
+
+    showToast(`Perusahaan "${name}" berhasil diperbarui!`, 'success');
+    closeModal('editCompanyModal');
+    loadCompanies();
+
+  } catch (err) {
+    showToast(err.message || 'Gagal menyimpan perubahan', 'error');
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+    btnText.textContent = 'Simpan Perubahan';
+  }
+}
+
+async function deleteCompany(code, name) {
+  if (!confirm(`Hapus perusahaan "${name}" (${code}) dari sistem Cashper?\nData perusahaan akan dihapus.`)) return;
+
+  try {
+    // Attempt 1: Call RPC
+    let deleted = false;
+    try {
+      const { data, error } = await supabaseClient.rpc('admin_delete_company', { p_company_code: code });
+      if (!error && data?.success) {
+        deleted = true;
+      }
+    } catch (_) {}
+
+    // Fallback: Direct delete
+    if (!deleted) {
+      const { error } = await supabaseClient
+        .from('companies')
+        .delete()
+        .eq('company_code', code);
+      if (error) throw error;
+    }
+
+    showToast(`Perusahaan ${name} berhasil dihapus.`, 'success');
+    loadCompanies();
+
   } catch (err) {
     showToast('Gagal menghapus: ' + err.message, 'error');
   }

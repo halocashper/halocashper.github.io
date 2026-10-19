@@ -13,7 +13,309 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-  <div class="app-layout" id="appLayout">
+  <!-- ================================================================= -->
+  <!-- 1. LANDING PAGE CASHPER (https://halocashper.github.io/) -->
+  <!-- ================================================================= -->
+  <div id="landingPage">
+    <!-- Landing Navigation -->
+    <header class="landing-nav">
+      <a href="#" class="landing-nav-brand">
+        <div class="landing-brand-avatar">C</div>
+        <div>
+          <span class="landing-brand-name">Cashper</span>
+          <span class="landing-brand-badge">EWA Fintech</span>
+        </div>
+      </a>
+
+      <nav class="landing-nav-links">
+        <a href="#solusi">Solusi EWA</a>
+        <a href="#keunggulan">Keunggulan</a>
+        <a href="#kalkulator">Kalkulator ROI</a>
+        <a href="#carakerja">Cara Kerja</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+
+      <div class="landing-nav-actions">
+        <!-- Button Login Khusus Admin Cashper -->
+        <button class="btn-admin-access" onclick="openLoginAdminModal()">
+          <span class="material-symbols-rounded" style="font-size:18px;">admin_panel_settings</span>
+          <span>Admin Cashper</span>
+        </button>
+
+        <!-- Button Login HR Perusahaan -->
+        <button class="btn-hr-access" onclick="openLoginHrModal()">
+          <span class="material-symbols-rounded" style="font-size:18px;">business</span>
+          <span>Akses HR</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="landing-hero" id="solusi">
+      <div>
+        <div class="hero-pill">
+          <span class="material-symbols-rounded" style="font-size:16px;">verified</span>
+          <span>Earned Wage Access (EWA) Terpercaya Indonesia</span>
+        </div>
+
+        <h1 class="hero-title">
+          Tingkatkan Kesejahteraan Finansial Karyawan <span>Tanpa Bebani Arus Kas</span>
+        </h1>
+
+        <p class="hero-desc">
+          Beri kebebasan bagi karyawan untuk mencairkan sebagian upah berjalan kapan saja secara aman dan instan. Bunga 0%, Tanpa Hutang/Pinjol, dengan subsidi perusahaan hanya <strong>Rp 1.250 / transaksi</strong>.
+        </p>
+
+        <div class="hero-actions">
+          <button class="btn-hr-access" style="padding:12px 28px; font-size:1rem;" onclick="openLoginHrModal()">
+            <span class="material-symbols-rounded">login</span>
+            <span>Akses Portal HR</span>
+          </button>
+          <a href="#kalkulator" class="btn-admin-access" style="padding:12px 24px; font-size:1rem; text-decoration:none;">
+            <span class="material-symbols-rounded">calculate</span>
+            <span>Hitung Simulasi ROI</span>
+          </a>
+        </div>
+
+        <div class="hero-stats-strip">
+          <div class="hero-stat-item">
+            <h4>0%</h4>
+            <p>Bunga Pinjaman</p>
+          </div>
+          <div class="hero-stat-item">
+            <h4>100%</h4>
+            <p>Bebas Beban Kas</p>
+          </div>
+          <div class="hero-stat-item">
+            <h4>Rp 1.250</h4>
+            <p>Subsidi Flat / Tx</p>
+          </div>
+          <div class="hero-stat-item">
+            <h4>Tgl 28</h4>
+            <p>Cut-off Otomatis</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hero Card Preview (Fintech Showcase) -->
+      <div>
+        <div class="hero-card-preview">
+          <div class="hero-card-header">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div class="landing-brand-avatar" style="width:34px;height:34px;font-size:1rem;">C</div>
+              <div>
+                <div style="font-weight:700;font-size:0.95rem;color:#fff;">Cashper Mobile App</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);">Akses Upah Harian Karyawan</div>
+              </div>
+            </div>
+            <span class="badge badge-success">Terverifikasi BRI</span>
+          </div>
+
+          <div class="hero-balance-box">
+            <div class="hero-balance-label">Estimasi Upah Berjalan Terkumpul</div>
+            <div class="hero-balance-value">Rp 1.850.000</div>
+            <div style="font-size:0.76rem;color:var(--text-muted);margin-top:4px;">Dari total estimasi gaji bulanan Rp 4.000.000 (15 Hari Kerja)</div>
+          </div>
+
+          <div style="background:rgba(124,45,184,0.12);border:1px solid rgba(124,45,184,0.25);border-radius:var(--radius-md);padding:14px;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-size:0.82rem;font-weight:600;color:#fff;">Akses Tarik Dana Instan (EWA)</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);">Pencairan langsung ke rekening BRI karyawan</div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="openLoginHrModal()" style="font-size:0.8rem;">Coba Demo</button>
+          </div>
+
+          <div class="hero-card-badge-row">
+            <span class="hero-badge-tag"><span class="material-symbols-rounded" style="font-size:14px;color:#10b981;vertical-align:middle;">check_circle</span> Tanpa Bunga</span>
+            <span class="hero-badge-tag"><span class="material-symbols-rounded" style="font-size:14px;color:#10b981;vertical-align:middle;">check_circle</span> Multi-Perusahaan</span>
+            <span class="hero-badge-tag"><span class="material-symbols-rounded" style="font-size:14px;color:#10b981;vertical-align:middle;">check_circle</span> Edukasi EduCash</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Keunggulan Section -->
+    <section class="landing-section" id="keunggulan">
+      <div class="section-badge">Solusi Menyeluruh</div>
+      <h2 class="section-heading">Mengapa Perusahaan Memilih Cashper?</h2>
+      <p class="section-subheading">Platform EWA terintegrasi yang dirancang khusus untuk meningkatkan produktivitas tenaga kerja Indonesia tanpa beban administratif.</p>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">
+            <span class="material-symbols-rounded" style="font-size:26px;">account_balance</span>
+          </div>
+          <div class="feature-title">Kas Perusahaan 100% Aman</div>
+          <div class="feature-desc">Cashper mendanai penarikan EWA terlebih dahulu. Arus kas operasional perusahaan Anda tetap utuh sampai tanggal penggajian tiba.</div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <span class="material-symbols-rounded" style="font-size:26px;">savings</span>
+          </div>
+          <div class="feature-title">Subsidi Ringan Rp 1.250 / tx</div>
+          <div class="feature-desc">Perusahaan hanya menanggung biaya subsidi flat Rp 1.250 per transaksi. Transparan, tercatat rapi per bulan, dan bebas biaya tersembunyi.</div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <span class="material-symbols-rounded" style="font-size:26px;">domain</span>
+          </div>
+          <div class="feature-title">ID Perusahaan Terisolasi</div>
+          <div class="feature-desc">Setiap perusahaan mitra memiliki ID unik tersendiri. HR hanya melihat data perusahaannya, dan karyawan login sesuai tempat kerjanya.</div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <span class="material-symbols-rounded" style="font-size:26px;">play_circle</span>
+          </div>
+          <div class="feature-title">EduCash & Caspy AI</div>
+          <div class="feature-desc">Karyawan dibekali video literasi finansial bergaya YouTube serta asisten finansial AI 24/7 untuk perencanaan anggaran yang bijak.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Kalkulator Interaktif ROI -->
+    <section class="landing-section" id="kalkulator">
+      <div class="section-badge">Simulasi Interaktif</div>
+      <h2 class="section-heading">Kalkulator Penghematan & Manfaat EWA</h2>
+      <p class="section-subheading">Ketahui seberapa besar penghematan biaya pergantian karyawan (turnover) serta estimasi biaya subsidi perusahaan Anda.</p>
+
+      <div class="calc-container">
+        <div>
+          <div class="calc-slider-group">
+            <div class="calc-slider-header">
+              <span>Jumlah Karyawan</span>
+              <strong id="calcEmployeesLabel" class="text-purple">100 Karyawan</strong>
+            </div>
+            <input type="range" class="calc-slider" id="calcEmployees" min="10" max="1000" step="10" value="100" oninput="updateCalculator()">
+          </div>
+
+          <div class="calc-slider-group">
+            <div class="calc-slider-header">
+              <span>Rata-Rata Gaji Bulanan</span>
+              <strong id="calcSalaryLabel" class="text-purple">Rp 4.500.000</strong>
+            </div>
+            <input type="range" class="calc-slider" id="calcSalary" min="2500000" max="15000000" step="500000" value="4500000" oninput="updateCalculator()">
+          </div>
+
+          <p style="font-size:0.85rem;color:var(--text-muted);line-height:1.5;">
+            *Asumsi rata-rata pemakaian EWA 1,5x per karyawan/bulan. EWA terbukti menekan angka turnover karyawan sebesar 20-30% menurut studi industri.
+          </p>
+        </div>
+
+        <div class="calc-result-box">
+          <div style="font-size:0.85rem;color:var(--text-muted);">Proyeksi Penghematan Turnover Tahunan</div>
+          <div class="calc-metric-val" id="calcSavingsResult">Rp 54.000.000</div>
+
+          <div style="border-top:1px solid var(--border-subtle);padding-top:16px;margin-top:14px;display:flex;justify-content:space-between;text-align:left;">
+            <div>
+              <div style="font-size:0.75rem;color:var(--text-muted);">Biaya Subsidi Perusahaan/Bulan</div>
+              <div style="font-size:1.05rem;font-weight:700;color:#fff;" id="calcSubsidyResult">Rp 187.500</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:0.75rem;color:var(--text-muted);">ROI Finansial</div>
+              <div style="font-size:1.05rem;font-weight:700;color:#10b981;">24x Lipat</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Cara Kerja -->
+    <section class="landing-section" id="carakerja">
+      <div class="section-badge">Implementasi Mudah</div>
+      <h2 class="section-heading">3 Langkah Cepat Bermitra dengan Cashper</h2>
+      <p class="section-subheading">Tanpa perlu instalasi server rumit, sistem siap digunakan hanya dalam hitungan hari.</p>
+
+      <div class="steps-grid">
+        <div class="step-card">
+          <span class="step-number">01</span>
+          <div class="feature-icon" style="background:var(--primary-subtle);">
+            <span class="material-symbols-rounded">handshake</span>
+          </div>
+          <div class="feature-title">Registrasi & ID Perusahaan</div>
+          <div class="feature-desc">Admin Cashper menerbitkan ID Perusahaan unik untuk perusahaan Anda beserta kredensial akun HR.</div>
+        </div>
+
+        <div class="step-card">
+          <span class="step-number">02</span>
+          <div class="feature-icon" style="background:var(--primary-subtle);">
+            <span class="material-symbols-rounded">group_add</span>
+          </div>
+          <div class="feature-title">HR Input Data Karyawan</div>
+          <div class="feature-desc">HR mendaftarkan nama, jabatan, email, dan rekening payroll karyawan melalui Dashboard HR Web.</div>
+        </div>
+
+        <div class="step-card">
+          <span class="step-number">03</span>
+          <div class="feature-icon" style="background:var(--primary-subtle);">
+            <span class="material-symbols-rounded">smartphone</span>
+          </div>
+          <div class="feature-title">Karyawan Login APK & Tarik EWA</div>
+          <div class="feature-desc">Karyawan memasukkan ID Perusahaan di aplikasi Android Cashper dan dapat langsung mencairkan upah berjalannya.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="landing-section" id="faq">
+      <div class="section-badge">Pertanyaan Umum</div>
+      <h2 class="section-heading">Frequently Asked Questions</h2>
+      <p class="section-subheading">Jawaban atas pertanyaan umum seputar fasilitas EWA Cashper.</p>
+
+      <div class="faq-grid">
+        <div class="faq-card">
+          <div class="faq-q">Apakah Cashper adalah pinjaman online (pinjol)?</div>
+          <div class="faq-a">Bukan. Cashper adalah Earned Wage Access (EWA), yaitu fasilitas penarikan upah yang sudah menjadi hak karyawan atas hari kerja yang telah diselesaikan. Tanpa bunga dan tanpa utang.</div>
+        </div>
+
+        <div class="faq-card">
+          <div class="faq-q">Bagaimana jika perusahaan belum gajian saat karyawan menarik uang?</div>
+          <div class="faq-a">Cashper yang menalangi dana pencairan langsung ke rekening BRI karyawan secara real-time. Perusahaan hanya menyelesaikan rekonsiliasi saat tanggal cut-off payroll (tanggal 28).</div>
+        </div>
+
+        <div class="faq-card">
+          <div class="faq-q">Berapa biaya yang dibebankan kepada perusahaan?</div>
+          <div class="faq-a">Perusahaan hanya memberikan subsidi flat sebesar Rp 1.250 per transaksi yang dilakukan karyawan. Tidak ada biaya berlangganan bulanan yang memberatkan.</div>
+        </div>
+
+        <div class="faq-card">
+          <div class="faq-q">Bagaimana dengan privasi data antar perusahaan?</div>
+          <div class="faq-a">Sistem multi-tenant Cashper memisahkan database dan akses setiap perusahaan secara ketat berdasarkan ID Perusahaan. HR perusahaan lain tidak dapat melihat data Anda.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Landing Footer -->
+    <footer class="landing-footer">
+      <div class="footer-content">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div class="landing-brand-avatar" style="width:32px;height:32px;font-size:0.95rem;">C</div>
+          <div>
+            <div style="font-weight:700;color:#fff;font-size:1rem;">Cashper Indonesia</div>
+            <div style="font-size:0.75rem;color:var(--text-muted);">Platform Earned Wage Access & Financial Wellness</div>
+          </div>
+        </div>
+
+        <div class="footer-links">
+          <a href="#solusi">Solusi</a>
+          <a href="#keunggulan">Keunggulan</a>
+          <a href="#kalkulator">Kalkulator ROI</a>
+          <a href="mailto:halo.cashper@gmail.com">halo.cashper@gmail.com</a>
+        </div>
+
+        <div style="font-size:0.8rem;color:var(--text-muted);">
+          &copy; 2026 Cashper. Hak Cipta Dilindungi Undang-Undang.
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- ================================================================= -->
+  <!-- 2. DASHBOARD APP LAYOUT (HR Portal & Super Admin Cashper) -->
+  <!-- ================================================================= -->
+  <div class="app-layout view-hidden" id="appLayout">
     
     <!-- Left Sidebar -->
     <aside class="sidebar" id="sidebar">
@@ -21,8 +323,8 @@
         <div class="brand">
           <div class="brand-avatar">C</div>
           <div class="brand-info">
-            <span class="brand-title">Cashper</span>
-            <span class="brand-subtitle">HR Admin</span>
+            <span class="brand-title" id="sidebarBrandTitle">Cashper</span>
+            <span class="brand-subtitle" id="sidebarBrandSubtitle">HR Admin</span>
           </div>
         </div>
         <button class="btn-toggle-sidebar" id="btnToggleSidebar" onclick="toggleSidebar()" title="Minimize / Expand Sidebar">
@@ -34,6 +336,12 @@
         <button class="nav-item active" id="navOverview" onclick="navigate('overview')">
           <span class="material-symbols-rounded">dashboard</span>
           <span class="nav-label">Dashboard</span>
+        </button>
+
+        <!-- Khusus Super Admin: Manajemen Perusahaan Mitra -->
+        <button class="nav-item" id="navCompanies" onclick="navigate('companies')" style="display:none;">
+          <span class="material-symbols-rounded">corporate_fare</span>
+          <span class="nav-label">Perusahaan Mitra</span>
         </button>
 
         <button class="nav-item" id="navEmployees" onclick="navigate('employees')">
@@ -59,14 +367,19 @@
 
       <div class="sidebar-footer">
         <div class="user-chip">
-          <div class="user-avatar">
+          <div class="user-avatar" id="sidebarUserAvatar">
             <span class="material-symbols-rounded">admin_panel_settings</span>
           </div>
           <div class="user-meta">
-            <span class="user-name">HR Manager</span>
-            <span class="user-company">Cashper</span>
+            <span class="user-name" id="sidebarUserName">HR Manager</span>
+            <span class="user-company" id="sidebarUserCompany">Cashper</span>
           </div>
         </div>
+
+        <button class="btn btn-secondary btn-sm" onclick="handleLogout()" style="width:100%; margin-top:10px; justify-content:center;">
+          <span class="material-symbols-rounded" style="font-size:16px;">logout</span>
+          <span>Keluar Sesi</span>
+        </button>
       </div>
     </aside>
 
@@ -545,6 +858,49 @@
           </div>
         </section>
 
+        <!-- SECTION 6: MANAJEMEN PERUSAHAAN MITRA (Khusus Admin Cashper) -->
+        <section id="sectionCompanies" class="content-section">
+          <div class="panel-card">
+            <div class="panel-header table-toolbar">
+              <div class="panel-title-group">
+                <span class="material-symbols-rounded text-purple">corporate_fare</span>
+                <h3 class="panel-title">Manajemen Perusahaan Mitra</h3>
+              </div>
+              <div class="toolbar-actions">
+                <button class="btn btn-secondary btn-sm" onclick="loadCompanies()">
+                  <span class="material-symbols-rounded">refresh</span>
+                  <span>Segarkan</span>
+                </button>
+                <button class="btn btn-primary btn-sm" onclick="openAddCompanyModal()">
+                  <span class="material-symbols-rounded">add_business</span>
+                  <span>+ Tambah Perusahaan</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Tabel Daftar Perusahaan Mitra -->
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>ID Perusahaan</th>
+                    <th>Nama Perusahaan</th>
+                    <th>PIC HR</th>
+                    <th>Email HR</th>
+                    <th>No. Telepon</th>
+                    <th>Karyawan</th>
+                    <th>Status</th>
+                    <th style="text-align: right;">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="companiesTableBody">
+                  <tr><td colspan="8" class="table-empty">Memuat daftar perusahaan mitra...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
       </main>
     </div>
   </div>
@@ -822,6 +1178,202 @@
           <button type="submit" class="btn btn-primary" id="btnSubmitEditVideo">
             <span class="btn-spinner" id="spinnerEditVideo"></span>
             <span id="textSubmitEditVideo">Simpan Perubahan</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: LOGIN HR PERUSAHAAN (Akses HR) -->
+  <div class="modal-backdrop" id="loginHrModal">
+    <div class="modal-dialog" style="max-width: 440px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="material-symbols-rounded text-purple">business</span>
+          <h3>Portal Login HR Perusahaan</h3>
+        </div>
+        <button class="btn-close" onclick="closeModal('loginHrModal')">
+          <span class="material-symbols-rounded">close</span>
+        </button>
+      </div>
+      <form id="loginHrForm" onsubmit="handleLoginHr(event)">
+        <div class="modal-body">
+          <p style="font-size:0.86rem; color:var(--text-muted); margin-bottom:18px;">
+            Masuk ke dashboard khusus perusahaan Anda untuk mengelola karyawan, memantau penarikan EWA, dan laporan payroll.
+          </p>
+          <div class="form-grid">
+            <div class="form-group full-width">
+              <label>ID Perusahaan <span class="required">*</span></label>
+              <input type="text" id="loginHrCompanyCode" placeholder="Contoh: CASHPER atau WKS-01" required style="text-transform: uppercase;">
+              <small class="hint">ID unik perusahaan yang diberikan oleh Admin Cashper.</small>
+            </div>
+            <div class="form-group full-width">
+              <label>Email HR <span class="required">*</span></label>
+              <input type="email" id="loginHrEmail" placeholder="hr@perusahaan.com" required>
+            </div>
+            <div class="form-group full-width">
+              <label>Kata Sandi <span class="required">*</span></label>
+              <input type="password" id="loginHrPassword" placeholder="••••••••" required>
+            </div>
+          </div>
+          <div id="loginHrError" style="display:none; margin-top:14px; padding:10px 14px; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); border-radius:var(--radius-md); color:#fca5a5; font-size:0.84rem;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('loginHrModal')">Batal</button>
+          <button type="submit" class="btn btn-primary" id="btnSubmitLoginHr">
+            <span class="btn-spinner" id="spinnerLoginHr"></span>
+            <span id="textSubmitLoginHr">Masuk sebagai HR</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: LOGIN SUPER ADMIN CASHPER -->
+  <div class="modal-backdrop" id="loginAdminModal">
+    <div class="modal-dialog" style="max-width: 440px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="material-symbols-rounded text-purple">admin_panel_settings</span>
+          <h3>Portal Super Admin Cashper</h3>
+        </div>
+        <button class="btn-close" onclick="closeModal('loginAdminModal')">
+          <span class="material-symbols-rounded">close</span>
+        </button>
+      </div>
+      <form id="loginAdminForm" onsubmit="handleLoginAdmin(event)">
+        <div class="modal-body">
+          <p style="font-size:0.86rem; color:var(--text-muted); margin-bottom:18px;">
+            Akses moderasi pusat untuk mengelola seluruh perusahaan rekanan, moderasi karyawan lintas perusahaan, dan video edukasi.
+          </p>
+          <div class="form-grid">
+            <div class="form-group full-width">
+              <label>Email Admin Cashper <span class="required">*</span></label>
+              <input type="email" id="loginAdminEmail" placeholder="admin@cashper.id" required>
+            </div>
+            <div class="form-group full-width">
+              <label>Kata Sandi <span class="required">*</span></label>
+              <input type="password" id="loginAdminPassword" placeholder="••••••••" required>
+            </div>
+          </div>
+          <div id="loginAdminError" style="display:none; margin-top:14px; padding:10px 14px; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); border-radius:var(--radius-md); color:#fca5a5; font-size:0.84rem;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('loginAdminModal')">Batal</button>
+          <button type="submit" class="btn btn-primary" id="btnSubmitLoginAdmin">
+            <span class="btn-spinner" id="spinnerLoginAdmin"></span>
+            <span id="textSubmitLoginAdmin">Masuk Admin Cashper</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: TAMBAH PERUSAHAAN MITRA BARU -->
+  <div class="modal-backdrop" id="addCompanyModal">
+    <div class="modal-dialog" style="max-width: 520px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="material-symbols-rounded text-purple">add_business</span>
+          <h3>Tambah Perusahaan Mitra Baru</h3>
+        </div>
+        <button class="btn-close" onclick="closeModal('addCompanyModal')">
+          <span class="material-symbols-rounded">close</span>
+        </button>
+      </div>
+      <form id="addCompanyForm" onsubmit="handleCreateCompany(event)">
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>ID Perusahaan (Unik) <span class="required">*</span></label>
+              <input type="text" id="addCompanyCode" placeholder="Contoh: WKS-01" required style="text-transform: uppercase;">
+              <small class="hint">Kode unik untuk login HR & karyawan APK.</small>
+            </div>
+            <div class="form-group">
+              <label>Nama Resmi Perusahaan <span class="required">*</span></label>
+              <input type="text" id="addCompanyName" placeholder="PT Contoh Mandiri" required>
+            </div>
+            <div class="form-group">
+              <label>Nama PIC / HR</label>
+              <input type="text" id="addCompanyPic" placeholder="Nama Manajer HR">
+            </div>
+            <div class="form-group">
+              <label>Email HR</label>
+              <input type="email" id="addCompanyEmail" placeholder="hr@perusahaan.com">
+            </div>
+            <div class="form-group">
+              <label>No. Telepon / WhatsApp</label>
+              <input type="text" id="addCompanyPhone" placeholder="08123456789">
+            </div>
+            <div class="form-group">
+              <label>Alamat Perusahaan</label>
+              <input type="text" id="addCompanyAddress" placeholder="Jakarta, Indonesia">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('addCompanyModal')">Batal</button>
+          <button type="submit" class="btn btn-primary" id="btnSubmitAddCompany">
+            <span class="btn-spinner" id="spinnerAddCompany"></span>
+            <span id="textSubmitAddCompany">Simpan Perusahaan</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: EDIT PERUSAHAAN MITRA -->
+  <div class="modal-backdrop" id="editCompanyModal">
+    <div class="modal-dialog" style="max-width: 520px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="material-symbols-rounded text-purple">edit</span>
+          <h3>Edit Perusahaan Mitra</h3>
+        </div>
+        <button class="btn-close" onclick="closeModal('editCompanyModal')">
+          <span class="material-symbols-rounded">close</span>
+        </button>
+      </div>
+      <form id="editCompanyForm" onsubmit="handleUpdateCompany(event)">
+        <input type="hidden" id="editCompanyId">
+        <input type="hidden" id="editCompanyCodeHidden">
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>ID Perusahaan</label>
+              <input type="text" id="editCompanyCode" readonly style="opacity:0.8; background:var(--bg-hover); cursor:not-allowed;">
+              <small class="hint">ID perusahaan bersifat permanen.</small>
+            </div>
+            <div class="form-group">
+              <label>Nama Perusahaan <span class="required">*</span></label>
+              <input type="text" id="editCompanyName" required>
+            </div>
+            <div class="form-group">
+              <label>Nama PIC HR</label>
+              <input type="text" id="editCompanyPic">
+            </div>
+            <div class="form-group">
+              <label>Email HR</label>
+              <input type="email" id="editCompanyEmail">
+            </div>
+            <div class="form-group">
+              <label>No. Telepon</label>
+              <input type="text" id="editCompanyPhone">
+            </div>
+            <div class="form-group">
+              <label>Status Kemitraan</label>
+              <select id="editCompanyStatus" style="width:100%; background:var(--bg-input); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:10px 12px; color:var(--text-main); font-size:0.9rem;">
+                <option value="true">Aktif</option>
+                <option value="false">Nonaktif / Ditangguhkan</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('editCompanyModal')">Batal</button>
+          <button type="submit" class="btn btn-primary" id="btnSubmitEditCompany">
+            <span class="btn-spinner" id="spinnerEditCompany"></span>
+            <span id="textSubmitEditCompany">Simpan Perubahan</span>
           </button>
         </div>
       </form>
