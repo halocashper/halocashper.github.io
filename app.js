@@ -140,7 +140,26 @@ async function loadEmployees() {
       }));
     }
 
-    allEmployees = list;
+    allEmployees = list.map(e => {
+      const isHr = e.email && e.email.toLowerCase() === 'halo.cashper@gmail.com';
+      if (isHr) {
+        if (e.company !== 'Cashper' || e.bank_name !== 'BRI') {
+          // Sync update ke Supabase database jika masih bernilai lama
+          supabaseClient
+            .from('employees')
+            .update({ company: 'Cashper', bank_name: 'BRI' })
+            .eq('id', e.id)
+            .then(() => {});
+        }
+        return {
+          ...e,
+          company: 'Cashper',
+          bank_name: 'BRI'
+        };
+      }
+      return e;
+    });
+
     renderEmployeesTable(allEmployees);
     populateEwaEmployeeFilter();
     updateOverviewStats();
@@ -171,6 +190,10 @@ function renderEmployeesTable(list) {
     const salaryDisplay = isCompanyAccount ? '<span class="emp-sub">Non-EWA (HR Perusahaan)</span>' : `<div class="emp-salary">${formatRupiah(emp.base_salary)}</div>`;
     const companyBadge = isCompanyAccount ? '<span style="font-size:10px; background:#29153f; color:#bf5ae8; padding:2px 6px; border-radius:4px; display:inline-block; margin-top:2px;">Akun HR Perusahaan</span>' : '';
 
+    const companyDisplay = isCompanyAccount ? 'Cashper' : escapeHtml(emp.company || '-');
+    const bankDisplay = isCompanyAccount ? 'BRI' : escapeHtml(emp.bank_name || 'BRI');
+    const paydayDisplay = isCompanyAccount ? '<span style="color:var(--text-muted);">-</span>' : `Tgl ${emp.payday_day || 28}`;
+
     const deleteBtn = isCompanyAccount
       ? ''
       : `<button class="btn btn-danger btn-sm" onclick="deleteEmployee('${emp.id}', '${escapeHtml(emp.full_name)}')" title="Hapus Karyawan Permanen">
@@ -189,12 +212,12 @@ function renderEmployeesTable(list) {
           <div>${escapeHtml(emp.role_name || 'Staff')}</div>
           ${salaryDisplay}
         </td>
-        <td>${escapeHtml(emp.company || '-')}</td>
+        <td>${companyDisplay}</td>
         <td>
-          <div><strong>${escapeHtml(emp.bank_name || 'BRI')}</strong></div>
+          <div><strong>${bankDisplay}</strong></div>
           <div class="emp-sub" style="font-family: monospace; letter-spacing: 0.5px; font-weight: 500; color: #ffffff;">${accNumber}</div>
         </td>
-        <td>Tgl ${emp.payday_day || 28}</td>
+        <td>${paydayDisplay}</td>
         <td>${statusBadge}</td>
         <td>
           <div class="table-row-actions">
