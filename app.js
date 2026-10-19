@@ -2198,12 +2198,12 @@ function renderCompaniesTable(list) {
       ? `<span class="badge badge-success">Aktif</span>`
       : `<span class="badge badge-danger">Nonaktif</span>`;
 
-    const isDefault = c.company_code === 'C-191026' || c.company_code === 'CASHPER';
-    const deleteBtn = isDefault 
-      ? '' 
-      : `<button class="btn btn-danger btn-sm" onclick="deleteCompany('${c.company_code}', '${escapeHtml(c.name)}')" title="Hapus Perusahaan">
-           <span class="material-symbols-rounded" style="font-size:15px;">delete</span>
-         </button>`;
+    const deleteBtn = `
+      <button class="btn btn-danger btn-sm" onclick="deleteCompany('${c.company_code}', '${escapeHtml(c.name)}')" title="Hapus Perusahaan">
+        <span class="material-symbols-rounded" style="font-size:15px;">delete</span>
+        <span>Hapus</span>
+      </button>
+    `;
 
     return `
       <tr>
@@ -2448,31 +2448,45 @@ async function handleUpdateCompany(e) {
 }
 
 async function deleteCompany(code, name) {
-  if (!confirm(`Hapus perusahaan "${name}" (${code}) dari sistem Cashper?\nData perusahaan akan dihapus.`)) return;
+  if (!confirm(`Hapus perusahaan "${name}" (${code}) dari sistem Cashper?\nData perusahaan mitra ini akan dihapus.`)) return;
 
   try {
-    // Attempt 1: Call RPC
     let deleted = false;
+
+    // 1. Coba hapus via RPC
     try {
       const { data, error } = await supabaseClient.rpc('admin_delete_company', { p_company_code: code });
-      if (!error && data?.success) {
+      if (!error && (data?.success || data === true)) {
         deleted = true;
       }
-    } catch (_) {}
-
-    // Fallback: Direct delete
-    if (!deleted) {
-      const { error } = await supabaseClient
-        .from('companies')
-        .delete()
-        .eq('company_code', code);
-      if (error) throw error;
+    } catch (rpcErr) {
+      console.warn('RPC delete company error:', rpcErr);
     }
 
-    showToast(`Perusahaan ${name} berhasil dihapus.`, 'success');
+    // 2. Fallback: Hapus langsung dari tabel companies (case-insensitive & exact)
+    if (!deleted) {
+      const { error: err1 } = await supabaseClient
+        .from('companies')
+        .delete()
+        .ilike('company_code', code);
+
+      if (err1) {
+        const { error: err2 } = await supabaseClient
+          .from('companies')
+          .delete()
+          .eq('company_code', code);
+        if (err2) throw err2;
+      }
+    }
+
+    // Update state lokal seketika
+    allCompanies = allCompanies.filter(c => (c.company_code || '').toUpperCase() !== (code || '').toUpperCase());
+    renderCompaniesTable(allCompanies);
+
+    showToast(`Perusahaan "${name}" (${code}) berhasil dihapus.`, 'success');
     loadCompanies();
 
   } catch (err) {
-    showToast('Gagal menghapus: ' + err.message, 'error');
+    showToast('Gagal menghapus perusahaan: ' + err.message, 'error');
   }
 }
